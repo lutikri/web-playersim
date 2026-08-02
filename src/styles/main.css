@@ -1,0 +1,133 @@
+:root {
+  color: #f1f3ef;
+  background: #171a18;
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: #171a18;
+  color: #cdd4ce;
+  font-size: 11px;
+  letter-spacing: 0;
+  transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+#loading.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+}
+
+#loading.is-error {
+  color: #ff7b72;
+}
+
+#status {
+  position: fixed;
+  right: 18px;
+  bottom: 16px;
+  max-width: calc(100vw - 36px);
+  color: rgb(231 235 230 / 72%);
+  font: 500 10px/1.4 "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+#debug-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 4px;
+  background: rgb(12 14 13 / 76%);
+  color: rgb(238 241 236 / 76%);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+#debug-toggle:hover {
+  color: #fff;
+  border-color: rgb(255 255 255 / 36%);
+}
+
+#reticle {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 40%);
+  pointer-events: none;
+}
+
+.lil-gui.root {
+  --background-color: #141716;
+  --widget-color: #282d2a;
+  --hover-color: #323936;
+  --focus-color: #3a4540;
+  --text-color: #e9ede8;
+  --number-color: #8dd7bc;
+  --string-color: #f4c381;
+  top: 12px;
+  right: 12px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+.lil-gui.root.debug-level-panel {
+  left: auto;
+  right: 12px;
+}
+
+.lil-gui.root.debug-properties-panel {
+  top: 52px;
+  right: auto;
+  left: 12px;
+  max-height: calc(100vh - 64px);
+}
+
+@media (max-width: 600px) {
+  #status {
+    right: 10px;
+    bottom: 10px;
+    font-size: 9px;
+  }
+
+  .lil-gui.root.debug-level-panel,
+  .lil-gui.root.debug-properties-panel {
+    width: calc(50vw - 18px) !important;
+  }
+}
