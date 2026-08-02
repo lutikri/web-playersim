@@ -32,7 +32,7 @@ The converter skips current outputs. Use `npm run textures:force` to rebuild eve
 - Left click: Power, Volume Up, Volume Down, CD lid
 - `DEBUG`: toggle the lil-gui level editor
 
-The CD follows a stable world-space drag plane. Releasing near `SOKET_CD` commits the disc to the player; any other release returns it to its authored `PF_CD1` position.
+The CD is a Rapier dynamic rigid body driven through a damped spring joint while held. It keeps gravity, inertia and collider contact after release; releasing near the open `SOKET_CD` commits it to the player.
 
 ## Architecture
 
@@ -42,7 +42,11 @@ The level editor uses an inspector workflow. Select prefab roots from `Objects`,
 
 `Level > Save to project` posts the current editor state to the local Vite dev server and writes `src/config/level-config.json`. Vite reloads the app and the saved transforms, lights, materials and post-processing settings are applied on startup. This endpoint exists only while running `npm run dev`; production builds remain read-only.
 
-`PostProcessingRuntime` owns the EffectComposer pipeline: bloom, anamorphic glare, flare ghosts, color adjustments, vignette and grain. All parameters are live-editable under `Level > Post Processing` and are stored in the same project config.
+`PostProcessingRuntime` owns the EffectComposer pipeline: GTAO, bloom, anamorphic glare, flare ghosts, chromatic aberration, autofocus depth of field, color adjustments, vignette and grain. All parameters are live-editable under `Level > Post Processing` and are stored in the same project config.
+
+`Level > Performance` exposes live FPS, frame time, draw calls, triangle count, GPU resources and the actual drawing-buffer size. Quality presets change render scale, MSAA, GTAO resolution/sample count and optional lens passes; selecting a preset updates the same project-backed post-processing config. Static shadow maps are cached and refreshed during object motion or periodically while idle.
+
+`DotMatrixDisplay` renders the receiver canvas from explicit square-cell glyphs. The idle state shows a compact weekday beside a larger 24-hour clock; startup and transport messages reuse the same pixel grid without browser font rasterization.
 
 Runtime asset URLs are centralized in `SceneRuntime`. Required Blender nodes fail with an explicit asset-path error. Collision meshes matching `UBX_` or `UCX_` are hidden by default and can be inspected from `Level > Show collision`.
 
@@ -54,4 +58,4 @@ Scene units are meters. The current receiver is about 0.39 m wide and the CD is 
 
 ## Current scope
 
-This slice covers prefab placement, free camera, physical button feedback, the red/off/blue power indicator sequence, state-driven screen/control bar, the animated CD lid, direct CD drag and player snap, project-backed level editing, and the first post-processing pipeline. Playback/audio, disc cases, LUT grading and advanced screen-space effects remain later systems.
+This slice covers prefab placement, free camera, physical button feedback, the red/off/blue power indicator sequence, state-driven screen/control bar, the animated CD lid, spring-driven physical CD drag and player snap, project-backed level editing, and the first post-processing pipeline. Playback/audio, disc cases and LUT grading remain later systems.

@@ -16,6 +16,8 @@ describe('post-processing settings', () => {
     expect(settings.ambientOcclusion.enabled).toBe(true);
     expect(settings.chromaticAberration.amount).toBeGreaterThan(0);
     expect(settings.depthOfField.enabled).toBe(false);
+    expect(settings.depthOfField.autofocus).toBe(true);
     expect(settings.antiAliasing).toEqual({ method: 'msaa', msaaSamples: 4 });
+    expect(settings.renderScale).toBe(1);
   });
 });

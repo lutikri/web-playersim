@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appReducer, initialState } from './Store';
+import { appReducer, initialState, type AppState } from './Store';
 
 describe('appReducer', () => {
   it('runs the guarded power startup transition', () => {
@@ -14,6 +14,15 @@ describe('appReducer', () => {
     const powered = { ...initialState, power: 'on' as const, volumeDb: -2 };
     expect(appReducer(powered, { type: 'VOLUME_CHANGED', deltaDb: 10 }).volumeDb).toBe(0);
     expect(appReducer(powered, { type: 'VOLUME_CHANGED', deltaDb: -100 }).volumeDb).toBe(-60);
+  });
+
+  it('cycles receiver inputs only while powered on', () => {
+    expect(appReducer(initialState, { type: 'SOURCE_SELECT_PRESSED' })).toBe(initialState);
+    let state: AppState = { ...initialState, power: 'on' };
+    for (const expected of ['usb', 'fm', 'dab', 'cast', 'bluetooth', 'cd', 'spotify'] as const) {
+      state = appReducer(state, { type: 'SOURCE_SELECT_PRESSED' });
+      expect(state.selectedSource).toBe(expected);
+    }
   });
 
   it('commits a dragged disc only after a valid player drop', () => {

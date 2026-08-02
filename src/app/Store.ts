@@ -1,6 +1,8 @@
 export type PowerState = 'off' | 'starting' | 'on';
 export type DiscLocation = 'table' | 'dragging' | 'player';
 export type TransportState = 'closed' | 'opening' | 'open' | 'closing';
+export const INPUT_SOURCES = ['spotify', 'usb', 'fm', 'dab', 'cast', 'bluetooth', 'cd'] as const;
+export type InputSource = typeof INPUT_SOURCES[number];
 
 export interface AppState {
   power: PowerState;
@@ -8,12 +10,14 @@ export interface AppState {
   discLocation: DiscLocation;
   snapPreview: boolean;
   transport: TransportState;
+  selectedSource: InputSource;
 }
 
 export type AppEvent =
   | { type: 'POWER_PRESSED' }
   | { type: 'POWER_READY' }
   | { type: 'VOLUME_CHANGED'; deltaDb: number }
+  | { type: 'SOURCE_SELECT_PRESSED' }
   | { type: 'TRAY_TOGGLE_REQUESTED' }
   | { type: 'TRAY_TRANSITION_FINISHED'; position: 'open' | 'closed' }
   | { type: 'DISC_DRAG_STARTED' }
@@ -26,6 +30,7 @@ export const initialState: AppState = {
   discLocation: 'table',
   snapPreview: false,
   transport: 'closed',
+  selectedSource: 'spotify',
 };
 
 export function appReducer(state: AppState, event: AppEvent): AppState {
@@ -38,6 +43,11 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
     case 'VOLUME_CHANGED':
       if (state.power !== 'on') return state;
       return { ...state, volumeDb: Math.min(0, Math.max(-60, state.volumeDb + event.deltaDb)) };
+    case 'SOURCE_SELECT_PRESSED': {
+      if (state.power !== 'on') return state;
+      const nextIndex = (INPUT_SOURCES.indexOf(state.selectedSource) + 1) % INPUT_SOURCES.length;
+      return { ...state, selectedSource: INPUT_SOURCES[nextIndex] };
+    }
     case 'TRAY_TOGGLE_REQUESTED':
       if (state.transport === 'closed') return { ...state, transport: 'opening' };
       if (state.transport === 'open') return { ...state, transport: 'closing' };

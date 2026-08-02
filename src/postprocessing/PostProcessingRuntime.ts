@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 
 export interface PostProcessingSettings {
   enabled: boolean;
+  renderScale: number;
   antiAliasing: { method: 'msaa' | 'off'; msaaSamples: number };
   ambientOcclusion: {
     enabled: boolean;
@@ -24,7 +25,15 @@ export interface PostProcessingSettings {
     denoiseSamples: number;
   };
   chromaticAberration: { enabled: boolean; amount: number };
-  depthOfField: { enabled: boolean; focus: number; aperture: number; maxBlur: number };
+  depthOfField: {
+    enabled: boolean;
+    autofocus: boolean;
+    focus: number;
+    focusSpeed: number;
+    maxDistance: number;
+    aperture: number;
+    maxBlur: number;
+  };
   bloom: { enabled: boolean; strength: number; radius: number; threshold: number };
   flare: {
     enabled: boolean;
@@ -53,8 +62,17 @@ export interface PostProcessingSettings {
   };
 }
 
+export type PostProcessingOverrides = {
+  [Key in keyof PostProcessingSettings]?: PostProcessingSettings[Key] extends object
+    ? { [NestedKey in keyof PostProcessingSettings[Key]]?: PostProcessingSettings[Key][NestedKey] extends object
+      ? Partial<PostProcessingSettings[Key][NestedKey]>
+      : PostProcessingSettings[Key][NestedKey] }
+    : PostProcessingSettings[Key];
+};
+
 export const DEFAULT_POST_PROCESSING: PostProcessingSettings = {
   enabled: true,
+  renderScale: 1,
   antiAliasing: { method: 'msaa', msaaSamples: 4 },
   ambientOcclusion: {
     enabled: true,
@@ -70,7 +88,15 @@ export const DEFAULT_POST_PROCESSING: PostProcessingSettings = {
     denoiseSamples: 4,
   },
   chromaticAberration: { enabled: true, amount: 0.001 },
-  depthOfField: { enabled: false, focus: 1.2, aperture: 0.025, maxBlur: 0.006 },
+  depthOfField: {
+    enabled: false,
+    autofocus: true,
+    focus: 1.2,
+    focusSpeed: 7,
+    maxDistance: 12,
+    aperture: 0.025,
+    maxBlur: 0.006,
+  },
   bloom: { enabled: true, strength: 0.22, radius: 0.45, threshold: 0.82 },
   flare: {
     enabled: true,
@@ -116,7 +142,7 @@ function mergeSettings(target: Record<string, unknown>, source: Record<string, u
 }
 
 export function createPostProcessingSettings(
-  overrides?: Partial<PostProcessingSettings> | null,
+  overrides?: PostProcessingOverrides | null,
 ): PostProcessingSettings {
   const settings = cloneDefaults();
   if (overrides) mergeSettings(settings as unknown as Record<string, unknown>, overrides as Record<string, unknown>);
@@ -292,6 +318,15 @@ const chromaticAberrationShader = {
 
 export class PostProcessingRuntime {
   readonly settings: PostProcessingSettings;
+  readonly diagnostics = {
+    fps: 0,
+    frameMs: 0,
+    drawCalls: 0,
+    triangles: 0,
+    textures: 0,
+    programs: 0,
+    renderSize: '0 x 0',
+  };
   private composer!: EffectComposer;
   private gtaoPass!: GTAOPass;
   private bokehPass!: BokehPass;
@@ -303,20 +338,76 @@ export class PostProcessingRuntime {
   private width = window.innerWidth;
   private height = window.innerHeight;
   private ambientOcclusionKey = '';
+  private readonly autofocusRaycaster = new THREE.Raycaster();
+  private autofocusDistance = 1.2;
+  private autofocusElapsed = 0;
+  private diagnosticsStartedAt = performance.now();
+  private diagnosticsFrames = 0;
+  private diagnosticsDrawCalls = 0;
+  private diagnosticsTriangles = 0;
+  private readonly drawingBufferSize = new THREE.Vector2();
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
     private readonly scene: THREE.Scene,
     private readonly camera: THREE.Camera,
-    overrides?: Partial<PostProcessingSettings> | null,
+    overrides?: PostProcessingOverrides | null,
   ) {
     this.settings = createPostProcessingSettings(overrides);
+    this.autofocusDistance = this.settings.depthOfField.focus;
+    this.renderer.info.autoReset = false;
+    this.applyPixelRatio();
     this.buildPipeline();
   }
 
   rebuild(): void {
     this.disposePipeline();
     this.buildPipeline();
+  }
+
+  setRenderScale(scale: number): void {
+    this.settings.renderScale = THREE.MathUtils.clamp(scale, 0.5, 1);
+    this.resize(this.width, this.height);
+  }
+
+  applyQualityPreset(preset: 'Ultra' | 'High' | 'Medium' | 'Low'): void {
+    const { ambientOcclusion, antiAliasing, bloom, chromaticAberration, depthOfField, flare } = this.settings;
+    if (preset === 'Ultra') {
+      this.settings.renderScale = 1;
+      Object.assign(antiAliasing, { method: 'msaa', msaaSamples: 4 });
+      Object.assign(ambientOcclusion, { enabled: true, resolutionScale: 1, samples: 8, denoiseSamples: 4 });
+      bloom.enabled = true;
+      flare.enabled = true;
+      flare.glare.enabled = true;
+      flare.ghosts.enabled = true;
+      chromaticAberration.enabled = true;
+    } else if (preset === 'High') {
+      this.settings.renderScale = 0.85;
+      Object.assign(antiAliasing, { method: 'msaa', msaaSamples: 2 });
+      Object.assign(ambientOcclusion, { enabled: true, resolutionScale: 0.5, samples: 8, denoiseSamples: 4 });
+      bloom.enabled = true;
+      flare.enabled = true;
+      flare.glare.enabled = true;
+      flare.ghosts.enabled = false;
+      chromaticAberration.enabled = true;
+    } else if (preset === 'Medium') {
+      this.settings.renderScale = 0.7;
+      Object.assign(antiAliasing, { method: 'off', msaaSamples: 0 });
+      Object.assign(ambientOcclusion, { enabled: true, resolutionScale: 0.25, samples: 4, denoiseSamples: 2 });
+      bloom.enabled = true;
+      flare.enabled = false;
+      chromaticAberration.enabled = false;
+      depthOfField.enabled = false;
+    } else {
+      this.settings.renderScale = 0.55;
+      Object.assign(antiAliasing, { method: 'off', msaaSamples: 0 });
+      ambientOcclusion.enabled = false;
+      bloom.enabled = false;
+      flare.enabled = false;
+      chromaticAberration.enabled = false;
+      depthOfField.enabled = false;
+    }
+    this.rebuild();
   }
 
   private buildPipeline(): void {
@@ -353,19 +444,25 @@ export class PostProcessingRuntime {
   }
 
   render(deltaSeconds: number): void {
+    this.renderer.info.reset();
     if (!this.settings.enabled) {
       this.renderer.render(this.scene, this.camera);
+      this.updateDiagnostics();
       return;
     }
     this.elapsedSeconds += deltaSeconds;
+    this.updateAutofocus(deltaSeconds);
     this.syncSettings();
     this.colorPass.uniforms.time.value = this.elapsedSeconds;
     this.composer.render(deltaSeconds);
+    this.updateDiagnostics();
   }
 
   resize(width: number, height: number): void {
     this.width = width;
     this.height = height;
+    this.applyPixelRatio();
+    this.renderer.setSize(width, height, false);
     const pixelRatio = this.renderer.getPixelRatio();
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
@@ -408,13 +505,17 @@ export class PostProcessingRuntime {
       aperture: THREE.IUniform<number>;
       maxblur: THREE.IUniform<number>;
     };
-    bokehUniforms.focus.value = depthOfField.focus;
+    bokehUniforms.focus.value = depthOfField.autofocus ? this.autofocusDistance : depthOfField.focus;
     bokehUniforms.aperture.value = depthOfField.aperture;
     bokehUniforms.maxblur.value = depthOfField.maxBlur;
+    const lensEnabled = flare.enabled
+      && ((flare.glare.enabled && flare.glare.strength > 0) || (flare.ghosts.enabled && flare.ghosts.strength > 0));
+    this.bloomPass.enabled = bloom.enabled || lensEnabled;
     this.bloomPass.strength = bloom.enabled ? bloom.strength : 0;
     this.bloomPass.radius = bloom.radius;
     this.bloomPass.threshold = bloom.threshold;
     this.lensPass.uniforms.bloomTexture.value = this.bloomPass.renderTargetsHorizontal[0].texture;
+    this.lensPass.enabled = lensEnabled;
     this.lensPass.uniforms.flareEnabled.value = flare.enabled ? 1 : 0;
     this.lensPass.uniforms.glareEnabled.value = flare.glare.enabled ? 1 : 0;
     this.lensPass.uniforms.glareStrength.value = flare.glare.strength;
@@ -431,6 +532,7 @@ export class PostProcessingRuntime {
     this.lensPass.uniforms.ghostTint.value.set(flare.ghosts.tint);
     this.chromaticAberrationPass.enabled = chromaticAberration.enabled;
     this.chromaticAberrationPass.uniforms.amount.value = chromaticAberration.amount;
+    this.colorPass.enabled = color.enabled;
     this.colorPass.uniforms.enabled.value = color.enabled ? 1 : 0;
     this.colorPass.uniforms.brightness.value = color.brightness;
     this.colorPass.uniforms.contrast.value = color.contrast;
@@ -452,5 +554,70 @@ export class PostProcessingRuntime {
       Math.max(1, Math.round(this.width * pixelRatio * scale)),
       Math.max(1, Math.round(this.height * pixelRatio * scale)),
     );
+  }
+
+  private updateAutofocus(deltaSeconds: number): void {
+    const settings = this.settings.depthOfField;
+    if (!settings.enabled || !settings.autofocus) {
+      this.autofocusDistance = settings.focus;
+      this.autofocusElapsed = 0;
+      return;
+    }
+    this.autofocusElapsed += deltaSeconds;
+    if (this.autofocusElapsed < 0.1) return;
+    const autofocusDelta = this.autofocusElapsed;
+    this.autofocusElapsed = 0;
+    const origin = this.camera.getWorldPosition(new THREE.Vector3());
+    const direction = this.camera.getWorldDirection(new THREE.Vector3());
+    this.autofocusRaycaster.set(origin, direction);
+    this.autofocusRaycaster.far = settings.maxDistance;
+    const hit = this.autofocusRaycaster.intersectObjects(this.scene.children, true).find((intersection) => {
+      const object = intersection.object;
+      if (!(object instanceof THREE.Mesh) || object.material instanceof THREE.MeshBasicMaterial) return false;
+      if (/^(?:U[BC]X)_/.test(object.name)) return false;
+      let ancestor: THREE.Object3D | null = object;
+      while (ancestor) {
+        if (!ancestor.visible) return false;
+        ancestor = ancestor.parent;
+      }
+      return true;
+    });
+    const targetDistance = THREE.MathUtils.clamp(
+      hit?.distance ?? settings.maxDistance,
+      0.05,
+      settings.maxDistance,
+    );
+    this.autofocusDistance = THREE.MathUtils.damp(
+      this.autofocusDistance,
+      targetDistance,
+      settings.focusSpeed,
+      autofocusDelta,
+    );
+  }
+
+  private applyPixelRatio(): void {
+    const nativeRatio = Math.min(window.devicePixelRatio, 2);
+    this.renderer.setPixelRatio(nativeRatio * THREE.MathUtils.clamp(this.settings.renderScale, 0.5, 1));
+  }
+
+  private updateDiagnostics(): void {
+    this.diagnosticsFrames += 1;
+    this.diagnosticsDrawCalls += this.renderer.info.render.calls;
+    this.diagnosticsTriangles += this.renderer.info.render.triangles;
+    const now = performance.now();
+    const elapsed = now - this.diagnosticsStartedAt;
+    if (elapsed < 750) return;
+    this.diagnostics.fps = Math.round((this.diagnosticsFrames * 1000 / elapsed) * 10) / 10;
+    this.diagnostics.frameMs = Math.round((elapsed / this.diagnosticsFrames) * 100) / 100;
+    this.diagnostics.drawCalls = Math.round(this.diagnosticsDrawCalls / this.diagnosticsFrames);
+    this.diagnostics.triangles = Math.round(this.diagnosticsTriangles / this.diagnosticsFrames);
+    this.diagnostics.textures = this.renderer.info.memory.textures;
+    this.diagnostics.programs = this.renderer.info.programs?.length ?? 0;
+    this.renderer.getDrawingBufferSize(this.drawingBufferSize);
+    this.diagnostics.renderSize = `${this.drawingBufferSize.x} x ${this.drawingBufferSize.y}`;
+    this.diagnosticsFrames = 0;
+    this.diagnosticsDrawCalls = 0;
+    this.diagnosticsTriangles = 0;
+    this.diagnosticsStartedAt = now;
   }
 }

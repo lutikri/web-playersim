@@ -22,6 +22,7 @@ $Jobs = @(
   @{ Source = 'T_Astreoid Rock Black_BaseColor.jpg'; Name = 'T_AsteroidBlack_BaseColor'; Mode = 'srgb'; Tiers = @{ '1K' = 1024; '2K' = 2048 } },
   @{ Source = 'T_Astreoid Rock Black_Normal.jpg'; Name = 'T_AsteroidBlack_Normal'; Mode = 'normal'; Tiers = @{ '1K' = 1024; '2K' = 2048 } },
   @{ Source = 'T_Astreoid Rock Black_Roughness.jpg'; Name = 'T_AsteroidBlack_Roughness'; Mode = 'linear'; Tiers = @{ '1K' = 1024; '2K' = 2048 } },
+  @{ Source = 'T_CD1_TestSample.png'; Name = 'T_CD1_TestSample'; Mode = 'srgb'; Tiers = @{ '1K' = 1024 } },
   @{ Source = 'T_ControlBar1.png'; Name = 'T_ControlBar1'; Mode = 'srgb'; Tiers = @{ '1K' = 1024 } }
 )
 

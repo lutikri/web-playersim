@@ -48,6 +48,13 @@ export function serializeMaterial(material: THREE.Material): SerializableMateria
     properties.attenuationDistance = material.attenuationDistance;
     properties.clearcoat = material.clearcoat;
     properties.clearcoatRoughness = material.clearcoatRoughness;
+    properties.anisotropy = material.anisotropy;
+    properties.anisotropyRotation = material.anisotropyRotation;
+    properties.iridescence = material.iridescence;
+    properties.iridescenceIOR = material.iridescenceIOR;
+    properties.iridescenceThicknessRange = [...material.iridescenceThicknessRange];
+    properties.specularIntensity = material.specularIntensity;
+    properties.specularColor = `#${material.specularColor.getHexString()}`;
   }
 
   return {

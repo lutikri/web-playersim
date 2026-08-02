@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { SerializableMaterial, SerializedMaterialValue } from '../debug/materialEditor';
 import { collectSceneMaterials } from '../debug/materialEditor';
-import type { PostProcessingSettings } from '../postprocessing/PostProcessingRuntime';
+import type { PostProcessingOverrides } from '../postprocessing/PostProcessingRuntime';
 import type { StudioEnvironmentRuntime } from '../scene/StudioEnvironmentRuntime';
 
 export interface ConfiguredObject {
@@ -22,7 +22,7 @@ export interface LevelConfig {
   };
   objects?: ConfiguredObject[];
   materials?: SerializableMaterial[];
-  postProcessing?: Partial<PostProcessingSettings>;
+  postProcessing?: PostProcessingOverrides;
 }
 
 interface LevelConfigTargets {
@@ -82,6 +82,10 @@ function setMaterialProperty(material: THREE.Material, key: string, value: Seria
   const current = material[key as keyof THREE.Material];
   if (current instanceof THREE.Color && typeof value === 'string') {
     current.set(value);
+    return;
+  }
+  if (Array.isArray(current) && Array.isArray(value)) {
+    current.splice(0, current.length, ...value);
     return;
   }
   if (key === 'attenuationDistance' && value === null) {

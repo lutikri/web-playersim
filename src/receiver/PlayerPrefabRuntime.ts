@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import type { AppState, Store } from '../app/Store';
+import type { AppEvent, AppState, InputSource, Store } from '../app/Store';
 import type { StudioEnvironmentRuntime } from '../scene/StudioEnvironmentRuntime';
 import type { TextureMaps, TextureStreamingRuntime, TextureStreamHandle } from '../scene/TextureStreamingRuntime';
+import { drawDotMatrixText, measureDotMatrixText, type DotMatrixTextStyle } from './DotMatrixDisplay';
 
 const TEXTURES = {
   player: {
@@ -28,13 +29,34 @@ const TEXTURES = {
   },
 } as const;
 
-const POWER_STARTUP_SECONDS = 1;
+const POWER_BLACKOUT_SECONDS = 0.3;
+const POWER_VOLUME_SECONDS = 1;
+const POWER_FINAL_BLACKOUT_SECONDS = 0.3;
+const POWER_STARTUP_SECONDS = POWER_BLACKOUT_SECONDS + POWER_VOLUME_SECONDS + POWER_FINAL_BLACKOUT_SECONDS;
+const CD_READING_WITH_DISC_SECONDS = 6;
+const CD_READING_EMPTY_SECONDS = 2;
+const CD_BLINK_SECONDS = 0.35;
 const LID_TRANSITION_SECONDS = 0.7;
 const LID_OPEN_ROTATION = Math.PI;
 const LID_LOCAL_AXIS = new THREE.Vector3(0, 1, 0);
 const BUTTON_PRESS_TRAVEL = 0.0006;
 const SCREEN_WIDTH = 530;
 const SCREEN_HEIGHT = 160;
+const CLOCK_STYLE: DotMatrixTextStyle = { cellSize: 9, cellGap: 2, letterGap: 8, glowStrength: 0.2 };
+const DAY_STYLE: DotMatrixTextStyle = { cellSize: 4, cellGap: 2, letterGap: 4, glowStrength: 0.16 };
+const MESSAGE_STYLE: DotMatrixTextStyle = { cellSize: 6, cellGap: 2, letterGap: 6, glowStrength: 0.18 };
+const HEADER_STYLE: DotMatrixTextStyle = { cellSize: 2, cellGap: 1, letterGap: 2, glowStrength: 0.14 };
+const BODY_STYLE: DotMatrixTextStyle = { cellSize: 5, cellGap: 2, letterGap: 4, glowStrength: 0.18 };
+const VOLUME_STYLE: DotMatrixTextStyle = { cellSize: 7, cellGap: 2, letterGap: 6, glowStrength: 0.2 };
+
+export type PowerDisplayPhase = 'blackout' | 'volume' | 'final-blackout' | 'ready';
+
+export function getPowerDisplayPhase(elapsedSeconds: number): PowerDisplayPhase {
+  if (elapsedSeconds < POWER_BLACKOUT_SECONDS) return 'blackout';
+  if (elapsedSeconds < POWER_BLACKOUT_SECONDS + POWER_VOLUME_SECONDS) return 'volume';
+  if (elapsedSeconds < POWER_STARTUP_SECONDS) return 'final-blackout';
+  return 'ready';
+}
 
 export function composeLocalYRotation(
   base: THREE.Quaternion,
@@ -52,6 +74,7 @@ export interface PlayerPrefabBindings {
   powerButton: THREE.Object3D;
   volumeUpButton: THREE.Object3D;
   volumeDownButton: THREE.Object3D;
+  sourceSelectButton: THREE.Object3D;
   lidInteraction: THREE.Object3D;
   lidRotationParent: THREE.Object3D;
 }
@@ -110,6 +133,13 @@ export class PlayerPrefabRuntime {
   private readonly controlBarMaterial: THREE.MeshStandardMaterial;
   private startupElapsed = 0;
   private starting = false;
+  private powerDisplayPhase: PowerDisplayPhase = 'ready';
+  private volumeOverlayElapsed = 0;
+  private cdReadingElapsed: number | null = null;
+  private cdReadingDuration = 0;
+  private cdReadComplete = false;
+  private cdBlinkVisible = true;
+  private discSpinAngle = 0;
   private lidElapsed = 0;
   private lidStartAngle = 0;
   private lidTargetAngle = 0;
@@ -121,6 +151,7 @@ export class PlayerPrefabRuntime {
 
   private constructor(
     bindings: PlayerPrefabBindings,
+    private readonly disc: THREE.Object3D,
     private readonly store: Store,
     materials: {
       body: THREE.MeshStandardMaterial;
@@ -146,13 +177,14 @@ export class PlayerPrefabRuntime {
     [bindings.powerButton, bindings.volumeUpButton, bindings.volumeDownButton].forEach((button) => {
       this.animatedButtons.set(button, { baseY: button.position.y, pressedUntil: 0 });
     });
-    this.unsubscribe = store.subscribe((next, previous) => this.onState(next, previous));
+    this.unsubscribe = store.subscribe((next, previous, event) => this.onState(next, previous, event));
     this.applyPowerPresentation(store.getState());
     this.drawDisplay(store.getState());
   }
 
   static async create(
     root: THREE.Object3D,
+    disc: THREE.Object3D,
     store: Store,
     assetPath: string,
     studioEnvironment: StudioEnvironmentRuntime,
@@ -235,9 +267,10 @@ export class PlayerPrefabRuntime {
       powerButton: requireObject(root, 'SM_Button_Power', assetPath),
       volumeUpButton: requireObject(root, 'SM_Button_VOLUP', assetPath),
       volumeDownButton: requireObject(root, 'SM_Button_VOLDOWN', assetPath),
+      sourceSelectButton: requireObject(root, 'BtnScreen_SELECT', assetPath),
       lidInteraction: requireObject(root, 'SM_CDLid', assetPath),
       lidRotationParent: requireObject(root, 'CDLidRotParent1', assetPath),
-    }, store, { body, screen, screenGlass, lidGlass, status, controlBar: controlBarMaterial }, [
+    }, disc, store, { body, screen, screenGlass, lidGlass, status, controlBar: controlBarMaterial }, [
       screenTexture,
     ], [bodyTextureStream, controlBarTextureStream], screenCanvas);
     runtime.releaseEnvironmentBindings.push(
@@ -261,8 +294,18 @@ export class PlayerPrefabRuntime {
   update(deltaSeconds: number): void {
     if (this.starting) {
       this.startupElapsed += deltaSeconds;
-      if (this.startupElapsed >= POWER_STARTUP_SECONDS) this.store.dispatch({ type: 'POWER_READY' });
+      const phase = getPowerDisplayPhase(this.startupElapsed);
+      if (phase !== this.powerDisplayPhase) {
+        this.powerDisplayPhase = phase;
+        this.drawDisplay(this.store.getState());
+      }
+      if (phase === 'ready') this.store.dispatch({ type: 'POWER_READY' });
     }
+    if (this.volumeOverlayElapsed > 0) {
+      this.volumeOverlayElapsed = Math.max(0, this.volumeOverlayElapsed - deltaSeconds);
+      if (this.volumeOverlayElapsed === 0) this.drawDisplay(this.store.getState());
+    }
+    this.updateCdReading(deltaSeconds);
     if (this.lidAnimating) this.updateLid(deltaSeconds);
     const now = performance.now();
     this.animatedButtons.forEach((animation, button) => {
@@ -272,6 +315,9 @@ export class PlayerPrefabRuntime {
     const minute = new Date().getMinutes();
     if (this.store.getState().power === 'off' && minute !== this.displayedMinute) {
       this.drawDisplay(this.store.getState());
+    }
+    if (this.store.getState().discLocation === 'player') {
+      this.disc.rotateY(this.discSpinAngle);
     }
   }
 
@@ -283,14 +329,59 @@ export class PlayerPrefabRuntime {
     this.ownedTextures.forEach((texture) => texture.dispose());
   }
 
-  private onState(next: AppState, previous: AppState): void {
+  private onState(next: AppState, previous: AppState, event: AppEvent): void {
     if (next.power !== previous.power) {
       this.starting = next.power === 'starting';
       this.startupElapsed = 0;
+      this.powerDisplayPhase = next.power === 'starting' ? 'blackout' : 'ready';
+      if (next.power === 'off') this.cancelCdReading();
+      if (next.power === 'on' && next.selectedSource === 'cd') this.startCdReading(next);
       this.applyPowerPresentation(next);
     }
-    if (next.transport !== previous.transport) this.startLidTransition(next);
+    if (next.volumeDb !== previous.volumeDb && next.power === 'on') this.volumeOverlayElapsed = 1;
+    if (next.selectedSource !== previous.selectedSource) {
+      this.cancelCdReading();
+      if (next.selectedSource === 'cd') this.startCdReading(next);
+    }
+    if (next.transport !== previous.transport) {
+      this.startLidTransition(next);
+      if (next.transport !== 'closed') this.cancelCdReading();
+      if (next.transport === 'closed' && next.selectedSource === 'cd') this.startCdReading(next);
+    }
+    if (event.type === 'DISC_DROPPED' && next.discLocation === 'player') this.cdReadComplete = false;
     this.drawDisplay(next);
+  }
+
+  private startCdReading(state: AppState): void {
+    if (state.power !== 'on' || state.selectedSource !== 'cd' || state.transport !== 'closed') return;
+    this.cdReadingElapsed = 0;
+    this.cdReadingDuration = state.discLocation === 'player'
+      ? CD_READING_WITH_DISC_SECONDS
+      : CD_READING_EMPTY_SECONDS;
+    this.cdReadComplete = false;
+    this.cdBlinkVisible = true;
+  }
+
+  private cancelCdReading(): void {
+    this.cdReadingElapsed = null;
+    this.cdBlinkVisible = true;
+  }
+
+  private updateCdReading(deltaSeconds: number): void {
+    if (this.cdReadingElapsed === null) return;
+    const state = this.store.getState();
+    this.cdReadingElapsed += deltaSeconds;
+    if (state.discLocation === 'player') this.discSpinAngle += deltaSeconds * 11;
+    const blinkVisible = Math.floor(this.cdReadingElapsed / CD_BLINK_SECONDS) % 2 === 0;
+    if (blinkVisible !== this.cdBlinkVisible) {
+      this.cdBlinkVisible = blinkVisible;
+      this.drawDisplay(state);
+    }
+    if (this.cdReadingElapsed < this.cdReadingDuration) return;
+    this.cdReadingElapsed = null;
+    this.cdReadComplete = state.discLocation === 'player';
+    this.cdBlinkVisible = true;
+    this.drawDisplay(state);
   }
 
   private startLidTransition(state: AppState): void {
@@ -325,10 +416,10 @@ export class PlayerPrefabRuntime {
   }
 
   private applyPowerPresentation(state: AppState): void {
-    const statusColor = state.power === 'on' ? 0x249cff : state.power === 'off' ? 0xd22b22 : 0x000000;
+    const statusColor = state.power === 'off' ? 0xd22b22 : 0x249cff;
     this.statusMaterial.color.setHex(statusColor);
     this.statusMaterial.emissive.setHex(statusColor);
-    this.statusMaterial.emissiveIntensity = state.power === 'starting' ? 0 : 3;
+    this.statusMaterial.emissiveIntensity = 3;
     const controlBarOn = state.power === 'on';
     this.controlBarMaterial.emissive.setHex(controlBarOn ? 0xffffff : 0x000000);
     this.controlBarMaterial.emissiveIntensity = controlBarOn ? 1.6 : 0;
@@ -339,20 +430,114 @@ export class PlayerPrefabRuntime {
     if (!context) return;
     context.fillStyle = '#020303';
     context.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    let text: string;
     if (state.power === 'off') {
-      text = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date());
-      this.displayedMinute = new Date().getMinutes();
+      const now = new Date();
+      const day = new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(now).toUpperCase();
+      const time = new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(now);
+      const dayWidth = measureDotMatrixText(day, DAY_STYLE);
+      const timeWidth = measureDotMatrixText(time, CLOCK_STYLE);
+      const groupGap = 30;
+      const groupX = (SCREEN_WIDTH - dayWidth - groupGap - timeWidth) / 2;
+      drawDotMatrixText(context, day, groupX, 72, DAY_STYLE);
+      drawDotMatrixText(context, time, groupX + dayWidth + groupGap, 41, CLOCK_STYLE);
+      this.displayedMinute = now.getMinutes();
     } else if (state.power === 'starting') {
-      text = 'PLEASE WAIT';
+      if (this.powerDisplayPhase === 'volume') this.drawVolume(context, state.volumeDb);
+    } else if (this.volumeOverlayElapsed > 0) {
+      this.drawVolume(context, state.volumeDb);
     } else {
-      text = state.discLocation === 'player' ? 'DISC READY' : 'NO CD';
+      this.drawSource(context, state);
     }
-    context.fillStyle = '#f1f5ed';
-    context.font = `700 ${text.length > 8 ? 54 : 76}px monospace`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(text, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 3);
     this.screenTexture.needsUpdate = true;
+  }
+
+  private drawVolume(context: CanvasRenderingContext2D, volumeDb: number): void {
+    const label = `VOLUME ${volumeDb}`;
+    const width = measureDotMatrixText(label, VOLUME_STYLE);
+    const boxX = 10;
+    const boxY = 24;
+    const boxWidth = SCREEN_WIDTH - boxX * 2;
+    const boxHeight = 112;
+    context.fillStyle = '#cbd1ca';
+    for (let x = boxX; x <= boxX + boxWidth; x += 6) {
+      context.fillRect(x, boxY, 4, 4);
+      context.fillRect(x, boxY + boxHeight - 4, 4, 4);
+    }
+    for (let y = boxY; y <= boxY + boxHeight; y += 6) {
+      context.fillRect(boxX, y, 4, 4);
+      context.fillRect(boxX + boxWidth - 4, y, 4, 4);
+    }
+    drawDotMatrixText(context, label, (SCREEN_WIDTH - width) / 2, 52, VOLUME_STYLE);
+  }
+
+  private drawSource(context: CanvasRenderingContext2D, state: AppState): void {
+    const labels: Record<InputSource, string> = {
+      spotify: 'SPOTIFY',
+      usb: 'USB',
+      fm: 'FM',
+      dab: 'DAB/DAB+',
+      cast: 'GOOGLE CAST',
+      bluetooth: 'BLUETOOTH',
+      cd: 'CD',
+    };
+    this.drawHeader(context, labels[state.selectedSource], state.volumeDb);
+    switch (state.selectedSource) {
+      case 'spotify':
+        return;
+      case 'usb':
+        this.drawCenteredMessage(context, 'NO DEVICE', 66, BODY_STYLE);
+        return;
+      case 'fm':
+        this.drawCenteredMessage(context, '87.50MHZ', 66, BODY_STYLE);
+        return;
+      case 'dab':
+        drawDotMatrixText(context, 'AUTO SCAN >', 18, 76, BODY_STYLE);
+        return;
+      case 'cast':
+        this.drawCenteredMessage(context, 'OPERATE VIA APP', 66, BODY_STYLE);
+        return;
+      case 'bluetooth':
+        this.drawCenteredMessage(context, 'READY', 66, BODY_STYLE);
+        return;
+      case 'cd':
+        this.drawCdState(context, state);
+    }
+  }
+
+  private drawHeader(context: CanvasRenderingContext2D, source: string, volumeDb: number): void {
+    drawDotMatrixText(context, source, 18, 16, HEADER_STYLE);
+    drawDotMatrixText(context, 'TONE', 350, 16, HEADER_STYLE);
+    drawDotMatrixText(context, `<${volumeDb}`, 440, 16, HEADER_STYLE);
+  }
+
+  private drawCdState(context: CanvasRenderingContext2D, state: AppState): void {
+    if (state.transport !== 'closed') {
+      this.drawCenteredMessage(context, 'CD OPEN', 66, BODY_STYLE);
+      return;
+    }
+    if (this.cdReadingElapsed !== null) {
+      if (this.cdBlinkVisible) this.drawCenteredMessage(context, 'READING', 66, BODY_STYLE);
+      return;
+    }
+    if (this.cdReadComplete && state.discLocation === 'player') {
+      drawDotMatrixText(context, 'TOTAL TRACK 1', 54, 62, BODY_STYLE);
+      drawDotMatrixText(context, '0:00', 405, 116, HEADER_STYLE);
+      return;
+    }
+    this.drawCenteredMessage(context, 'NO DISC', 66, BODY_STYLE);
+  }
+
+  private drawCenteredMessage(
+    context: CanvasRenderingContext2D,
+    text: string,
+    y = (SCREEN_HEIGHT - (7 * MESSAGE_STYLE.cellSize + 6 * MESSAGE_STYLE.cellGap)) / 2,
+    style: DotMatrixTextStyle = MESSAGE_STYLE,
+  ): void {
+    const width = measureDotMatrixText(text, style);
+    drawDotMatrixText(context, text, (SCREEN_WIDTH - width) / 2, y, style);
   }
 }

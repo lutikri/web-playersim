@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { composeLocalYRotation } from './PlayerPrefabRuntime';
+import { composeLocalYRotation, getPowerDisplayPhase } from './PlayerPrefabRuntime';
 
 interface GlbNode {
   name?: string;
@@ -59,5 +59,14 @@ describe('SM_Player1 asset contract', () => {
     expect(offset.x).toBeCloseTo(0);
     expect(offset.y).toBeCloseTo(0);
     expect(offset.z).toBeCloseTo(-1);
+  });
+
+  it('runs the authored power display sequence', () => {
+    expect(getPowerDisplayPhase(0)).toBe('blackout');
+    expect(getPowerDisplayPhase(0.299)).toBe('blackout');
+    expect(getPowerDisplayPhase(0.3)).toBe('volume');
+    expect(getPowerDisplayPhase(1.299)).toBe('volume');
+    expect(getPowerDisplayPhase(1.3)).toBe('final-blackout');
+    expect(getPowerDisplayPhase(1.6)).toBe('ready');
   });
 });

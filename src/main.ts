@@ -5,6 +5,7 @@ import { applyLevelConfig, type LevelConfig } from './config/LevelConfigRuntime'
 import { DebugPanel } from './debug/DebugPanel';
 import { InteractionRuntime } from './interaction/InteractionRuntime';
 import { PostProcessingRuntime } from './postprocessing/PostProcessingRuntime';
+import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { CameraRuntime } from './scene/CameraRuntime';
 import { SceneRuntime } from './scene/SceneRuntime';
 import { StudioEnvironmentRuntime } from './scene/StudioEnvironmentRuntime';
@@ -27,6 +28,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.25;
@@ -52,20 +55,26 @@ const store = new Store();
 const textureStreaming = new TextureStreamingRuntime(renderer);
 const sceneRuntime = new SceneRuntime(scene, store, studioEnvironment, textureStreaming);
 const cameraRuntime = new CameraRuntime(camera, canvas);
-const levelConfig = levelConfigJson as LevelConfig;
+const levelConfig = levelConfigJson as unknown as LevelConfig;
 const postProcessing = new PostProcessingRuntime(renderer, scene, camera, levelConfig.postProcessing);
 let interactionRuntime: InteractionRuntime | null = null;
+let physicsRuntime: PhysicsRuntime | null = null;
 let debugPanel: DebugPanel | null = null;
 let disposed = false;
+let shadowBurstSeconds = 1;
+let idleShadowElapsed = 0;
 
 function updateStatus(): void {
   const state = store.getState();
   const power = state.power === 'starting' ? 'STARTING' : state.power.toUpperCase();
   const disc = state.discLocation === 'player' ? 'CD LOADED' : state.discLocation === 'dragging' ? 'MOVING CD' : 'CD READY';
-  status.textContent = `${power}  /  ${state.transport.toUpperCase()}  /  ${state.volumeDb} dB  /  ${disc}`;
+  status.textContent = `${power}  /  ${state.selectedSource.toUpperCase()}  /  ${state.transport.toUpperCase()}  /  ${state.volumeDb} dB  /  ${disc}`;
 }
 
 store.subscribe(updateStatus);
+store.subscribe(() => {
+  shadowBurstSeconds = 1;
+});
 updateStatus();
 
 async function start(): Promise<void> {
@@ -73,7 +82,16 @@ async function start(): Promise<void> {
     const bindings = await sceneRuntime.load();
     applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment });
     sceneRuntime.refreshPresentation();
-    interactionRuntime = new InteractionRuntime(camera, canvas, bindings, store, cameraRuntime, sceneRuntime);
+    physicsRuntime = await PhysicsRuntime.create(bindings);
+    interactionRuntime = new InteractionRuntime(
+      camera,
+      canvas,
+      bindings,
+      store,
+      cameraRuntime,
+      sceneRuntime,
+      physicsRuntime,
+    );
     debugPanel = new DebugPanel(
       scene,
       camera,
@@ -96,8 +114,17 @@ async function start(): Promise<void> {
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const deltaSeconds = Math.min(clock.getDelta(), 0.05);
+  shadowBurstSeconds = Math.max(0, shadowBurstSeconds - deltaSeconds);
+  idleShadowElapsed += deltaSeconds;
+  const refreshIdleShadow = idleShadowElapsed >= 1;
+  if (refreshIdleShadow) idleShadowElapsed = 0;
+  renderer.shadowMap.needsUpdate = shadowBurstSeconds > 0
+    || refreshIdleShadow
+    || (physicsRuntime?.needsShadowUpdate() ?? false);
   textureStreaming.update(deltaSeconds);
   cameraRuntime.update(deltaSeconds);
+  interactionRuntime?.update(deltaSeconds);
+  physicsRuntime?.update(deltaSeconds);
   sceneRuntime.update(deltaSeconds);
   postProcessing.render(deltaSeconds);
 });
@@ -105,8 +132,6 @@ renderer.setAnimationLoop(() => {
 function resize(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   postProcessing.resize(window.innerWidth, window.innerHeight);
 }
 
@@ -115,6 +140,7 @@ function dispose(): void {
   disposed = true;
   renderer.setAnimationLoop(null);
   interactionRuntime?.dispose();
+  physicsRuntime?.dispose();
   debugPanel?.dispose();
   cameraRuntime.dispose();
   sceneRuntime.dispose();

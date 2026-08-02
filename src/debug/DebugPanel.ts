@@ -127,9 +127,30 @@ export class DebugPanel {
       this.showLightHelpers = visible;
       this.updateHelperVisibility();
     });
+    this.addPerformanceControls(level);
     this.addPostProcessingControls(level);
     level.add({ save: () => void this.saveConfig() }, 'save').name('Save to project');
     level.close();
+  }
+
+  private addPerformanceControls(level: GUI): void {
+    const folder = level.addFolder('Performance');
+    const presetState = { preset: 'Current' as 'Current' | 'Ultra' | 'High' | 'Medium' | 'Low' };
+    folder.add(presetState, 'preset', ['Current', 'Ultra', 'High', 'Medium', 'Low']).name('Quality preset')
+      .onChange((preset: 'Current' | 'Ultra' | 'High' | 'Medium' | 'Low') => {
+        if (preset !== 'Current') this.postProcessing.applyQualityPreset(preset);
+      });
+    folder.add(this.postProcessing.settings, 'renderScale', 0.5, 1, 0.05).name('Render scale')
+      .listen().onChange((scale: number) => this.postProcessing.setRenderScale(scale));
+    const diagnostics = this.postProcessing.diagnostics;
+    folder.add(diagnostics, 'fps').name('FPS').listen().disable();
+    folder.add(diagnostics, 'frameMs').name('Frame ms').listen().disable();
+    folder.add(diagnostics, 'drawCalls').name('Draw calls').listen().disable();
+    folder.add(diagnostics, 'triangles').name('Triangles').listen().disable();
+    folder.add(diagnostics, 'textures').name('GPU textures').listen().disable();
+    folder.add(diagnostics, 'programs').name('Programs').listen().disable();
+    folder.add(diagnostics, 'renderSize').name('Render size').listen().disable();
+    folder.close();
   }
 
   private addPostProcessingControls(level: GUI): void {
@@ -194,7 +215,10 @@ export class DebugPanel {
 
     const depthOfField = post.addFolder('Depth of field');
     depthOfField.add(settings.depthOfField, 'enabled').name('Enabled');
+    depthOfField.add(settings.depthOfField, 'autofocus').name('Autofocus');
     depthOfField.add(settings.depthOfField, 'focus', 0.05, 20, 0.01).name('Focus distance');
+    depthOfField.add(settings.depthOfField, 'focusSpeed', 0.1, 20, 0.1).name('Focus speed');
+    depthOfField.add(settings.depthOfField, 'maxDistance', 0.5, 50, 0.1).name('AF max distance');
     depthOfField.add(settings.depthOfField, 'aperture', 0, 0.2, 0.001).name('Aperture');
     depthOfField.add(settings.depthOfField, 'maxBlur', 0, 0.05, 0.0005).name('Max blur');
 
@@ -466,12 +490,39 @@ export class DebugPanel {
       material.attenuationColor.set(value);
     });
     glass.add(material, 'attenuationDistance', 0, 20, 0.01).name('Atten. distance').listen();
+
+    const reflections = this.propertiesGui.addFolder('Physical / Reflections');
+    reflections.add(material, 'anisotropy', 0, 1, 0.001).name('Anisotropy').listen()
+      .onChange(() => this.refreshMaterial(material));
+    const anisotropyRotation = { degrees: THREE.MathUtils.radToDeg(material.anisotropyRotation) };
+    reflections.add(anisotropyRotation, 'degrees', -180, 180, 0.1).name('Anisotropy angle').onChange((value: number) => {
+      material.anisotropyRotation = THREE.MathUtils.degToRad(value);
+    });
+    reflections.add(material, 'iridescence', 0, 1, 0.001).name('Iridescence').listen()
+      .onChange(() => this.refreshMaterial(material));
+    reflections.add(material, 'iridescenceIOR', 1, 2.333, 0.001).name('Iridescence IOR').listen();
+    const thicknessRange = {
+      minimum: material.iridescenceThicknessRange[0],
+      maximum: material.iridescenceThicknessRange[1],
+    };
+    reflections.add(thicknessRange, 'minimum', 0, 1200, 1).name('Iridescence min').onChange((value: number) => {
+      material.iridescenceThicknessRange[0] = Math.min(value, material.iridescenceThicknessRange[1]);
+    });
+    reflections.add(thicknessRange, 'maximum', 0, 1200, 1).name('Iridescence max').onChange((value: number) => {
+      material.iridescenceThicknessRange[1] = Math.max(value, material.iridescenceThicknessRange[0]);
+    });
+    reflections.add(material, 'specularIntensity', 0, 1, 0.001).name('Specular').listen();
+    const specularColor = { value: `#${material.specularColor.getHexString()}` };
+    reflections.addColor(specularColor, 'value').name('Specular color').onChange((value: string) => {
+      material.specularColor.set(value);
+    });
   }
 
   private addTextureSummary(material: THREE.Material): void {
     const textureSlots = [
       'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap',
-      'alphaMap', 'transmissionMap', 'thicknessMap', 'envMap',
+      'alphaMap', 'transmissionMap', 'thicknessMap', 'anisotropyMap', 'iridescenceMap',
+      'iridescenceThicknessMap', 'clearcoatMap', 'clearcoatRoughnessMap', 'envMap',
     ] as const;
     const assigned = textureSlots.flatMap((slot) => {
       if (!(slot in material)) return [];
@@ -493,6 +544,7 @@ export class DebugPanel {
   }
 
   private readonly onTransformChanged = (): void => {
+    this.renderer.shadowMap.needsUpdate = true;
     if (this.selectedRotationProxy && this.selected instanceof THREE.Object3D) {
       this.selectedRotationProxy.x = THREE.MathUtils.radToDeg(this.selected.rotation.x);
       this.selectedRotationProxy.y = THREE.MathUtils.radToDeg(this.selected.rotation.y);

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import type { Store } from '../app/Store';
+import type { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import type { CameraRuntime } from '../scene/CameraRuntime';
 import type { SceneBindings, SceneRuntime } from '../scene/SceneRuntime';
 
-export type Action = 'disc' | 'power' | 'volume-up' | 'volume-down' | 'lid';
+export type Action = 'disc' | 'power' | 'volume-up' | 'volume-down' | 'source-select' | 'lid';
 type ClickAction = Exclude<Action, 'disc'>;
 
 export function shouldCommitClick(pressed: ClickAction | null, released: Action | null): boolean {
@@ -14,8 +15,22 @@ interface DragState {
   pointerId: number;
   plane: THREE.Plane;
   offset: THREE.Vector3;
-  originPosition: THREE.Vector3;
-  originQuaternion: THREE.Quaternion;
+  targetWorld: THREE.Vector3;
+}
+
+interface PickResult {
+  action: Action;
+  point: THREE.Vector3;
+}
+
+const DISC_SNAP_DISTANCE = 0.115;
+
+export function isDiscInSnapRange(
+  transportOpen: boolean,
+  discPosition: THREE.Vector3,
+  socketPosition: THREE.Vector3,
+): boolean {
+  return transportOpen && discPosition.distanceTo(socketPosition) < DISC_SNAP_DISTANCE;
 }
 
 export class InteractionRuntime {
@@ -35,11 +50,13 @@ export class InteractionRuntime {
     private readonly store: Store,
     private readonly cameraRuntime: CameraRuntime,
     private readonly sceneRuntime: SceneRuntime,
+    private readonly physicsRuntime: PhysicsRuntime,
   ) {
     this.register(bindings.disc, 'disc');
     this.register(bindings.powerButton, 'power');
     this.register(bindings.volumeUpButton, 'volume-up');
     this.register(bindings.volumeDownButton, 'volume-down');
+    this.register(bindings.sourceSelectButton, 'source-select');
     this.register(bindings.lidInteraction, 'lid');
     this.snapMarker = new THREE.Mesh(
       new THREE.TorusGeometry(0.065, 0.003, 12, 48),
@@ -67,6 +84,12 @@ export class InteractionRuntime {
     this.snapMarker.removeFromParent();
   }
 
+  update(deltaSeconds: number): void {
+    if (!this.drag) return;
+    this.physicsRuntime.driveDiscGrab(this.drag.targetWorld, deltaSeconds);
+    this.updateSnapPreview();
+  }
+
   private register(root: THREE.Object3D, action: Action): void {
     this.targets.push(root);
     root.traverse((object) => this.targetByObject.set(object, action));
@@ -81,13 +104,13 @@ export class InteractionRuntime {
     this.raycaster.setFromCamera(this.pointer, this.camera);
   }
 
-  private pick(): Action | null {
+  private pick(): PickResult | null {
     const hit = this.raycaster.intersectObjects(this.targets, true)[0];
     if (!hit) return null;
     let object: THREE.Object3D | null = hit.object;
     while (object) {
       const action = this.targetByObject.get(object);
-      if (action) return action;
+      if (action) return { action, point: hit.point.clone() };
       object = object.parent;
     }
     return null;
@@ -96,9 +119,10 @@ export class InteractionRuntime {
   private readonly onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
     this.setPointer(event);
-    const action = this.pick();
+    const pick = this.pick();
+    const action = pick?.action ?? null;
     if (action === 'disc') {
-      this.beginDrag(event);
+      this.beginDrag(event, pick?.point ?? this.bindings.disc.getWorldPosition(new THREE.Vector3()));
       return;
     }
     if (action) {
@@ -118,26 +142,26 @@ export class InteractionRuntime {
     } else if (action === 'volume-down') {
       this.sceneRuntime.pulseButton(this.bindings.volumeDownButton);
       this.store.dispatch({ type: 'VOLUME_CHANGED', deltaDb: -2 });
+    } else if (action === 'source-select') {
+      this.store.dispatch({ type: 'SOURCE_SELECT_PRESSED' });
     } else if (action === 'lid') {
       this.store.dispatch({ type: 'TRAY_TOGGLE_REQUESTED' });
     }
   }
 
-  private beginDrag(event: PointerEvent): void {
+  private beginDrag(event: PointerEvent, grabPoint: THREE.Vector3): void {
     if (this.store.getState().discLocation !== 'table') return;
-    const originPosition = this.bindings.disc.position.clone();
-    const originQuaternion = this.bindings.disc.quaternion.clone();
-    const worldPosition = this.bindings.disc.getWorldPosition(new THREE.Vector3());
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -worldPosition.y);
+    const planeNormal = this.camera.getWorldDirection(new THREE.Vector3());
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, grabPoint);
     const hit = this.raycaster.ray.intersectPlane(plane, new THREE.Vector3());
     if (!hit) return;
     this.drag = {
       pointerId: event.pointerId,
       plane,
-      offset: worldPosition.sub(hit),
-      originPosition,
-      originQuaternion,
+      offset: grabPoint.clone().sub(hit),
+      targetWorld: grabPoint.clone(),
     };
+    this.physicsRuntime.beginDiscGrab(grabPoint);
     this.canvas.setPointerCapture(event.pointerId);
     this.cameraRuntime.setEnabled(false);
     this.store.dispatch({ type: 'DISC_DRAG_STARTED' });
@@ -146,7 +170,7 @@ export class InteractionRuntime {
   private readonly onPointerMove = (event: PointerEvent): void => {
     this.setPointer(event);
     if (!this.drag) {
-      const hovered = this.pick();
+      const hovered = this.pick()?.action ?? null;
       if (hovered !== this.hovered) {
         this.hovered = hovered;
         this.canvas.style.cursor = hovered === 'disc' ? 'grab' : hovered ? 'pointer' : 'default';
@@ -155,14 +179,7 @@ export class InteractionRuntime {
     }
     const hit = this.raycaster.ray.intersectPlane(this.drag.plane, new THREE.Vector3());
     if (!hit) return;
-    const worldPosition = hit.add(this.drag.offset);
-    const parent = this.bindings.disc.parent;
-    this.bindings.disc.position.copy(parent ? parent.worldToLocal(worldPosition.clone()) : worldPosition);
-    const socketPosition = this.bindings.discSocket.getWorldPosition(new THREE.Vector3());
-    const inSnapRange = this.store.getState().transport === 'open'
-      && worldPosition.distanceTo(socketPosition) < 0.115;
-    this.snapMarker.visible = inSnapRange;
-    this.store.dispatch({ type: 'DISC_SNAP_PREVIEW', active: inSnapRange });
+    this.drag.targetWorld.copy(hit.add(this.drag.offset));
     this.canvas.style.cursor = 'grabbing';
   };
 
@@ -170,21 +187,21 @@ export class InteractionRuntime {
     if (!this.drag) {
       if (!this.pendingClick || event.pointerId !== this.pendingClick.pointerId) return;
       this.setPointer(event);
-      const releasedAction = this.pick();
+      const releasedAction = this.pick()?.action ?? null;
       if (shouldCommitClick(this.pendingClick.action, releasedAction)) this.commitClick(this.pendingClick.action);
       this.finishPendingClick(event.pointerId);
       return;
     }
     if (event.pointerId !== this.drag.pointerId) return;
+    this.updateSnapPreview();
     const shouldSnap = this.store.getState().snapPreview;
     if (shouldSnap) {
       const socketPosition = this.bindings.discSocket.getWorldPosition(new THREE.Vector3());
-      const parent = this.bindings.disc.parent;
-      this.bindings.disc.position.copy(parent ? parent.worldToLocal(socketPosition.clone()) : socketPosition);
-      this.bindings.disc.quaternion.copy(this.bindings.discSocket.getWorldQuaternion(new THREE.Quaternion()));
+      const socketQuaternion = this.bindings.discSocket.getWorldQuaternion(new THREE.Quaternion());
+      this.physicsRuntime.snapDisc(socketPosition, socketQuaternion);
       this.store.dispatch({ type: 'DISC_DROPPED', target: 'player' });
     } else {
-      this.returnToOrigin();
+      this.physicsRuntime.endDiscGrab();
       this.store.dispatch({ type: 'DISC_DROPPED', target: 'origin' });
     }
     this.finishDrag(event.pointerId);
@@ -193,7 +210,7 @@ export class InteractionRuntime {
   private readonly cancelInteraction = (): void => {
     if (this.drag) {
       const pointerId = this.drag.pointerId;
-      this.returnToOrigin();
+      this.physicsRuntime.resetDisc();
       this.store.dispatch({ type: 'DISC_DROPPED', target: 'origin' });
       this.finishDrag(pointerId);
     }
@@ -206,17 +223,23 @@ export class InteractionRuntime {
     this.canvas.style.cursor = 'default';
   }
 
-  private returnToOrigin(): void {
-    if (!this.drag) return;
-    this.bindings.disc.position.copy(this.drag.originPosition);
-    this.bindings.disc.quaternion.copy(this.drag.originQuaternion);
-  }
-
   private finishDrag(pointerId: number): void {
     if (this.canvas.hasPointerCapture(pointerId)) this.canvas.releasePointerCapture(pointerId);
     this.drag = null;
     this.snapMarker.visible = false;
     this.canvas.style.cursor = 'default';
     this.cameraRuntime.setEnabled(true);
+  }
+
+  private updateSnapPreview(): void {
+    const discPosition = this.physicsRuntime.getDiscWorldPosition();
+    const socketPosition = this.bindings.discSocket.getWorldPosition(new THREE.Vector3());
+    const inSnapRange = isDiscInSnapRange(
+      this.store.getState().transport === 'open',
+      discPosition,
+      socketPosition,
+    );
+    this.snapMarker.visible = inSnapRange;
+    this.store.dispatch({ type: 'DISC_SNAP_PREVIEW', active: inSnapRange });
   }
 }

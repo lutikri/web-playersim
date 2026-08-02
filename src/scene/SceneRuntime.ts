@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Store } from '../app/Store';
+import { DiscPrefabRuntime } from '../receiver/DiscPrefabRuntime';
 import { PlayerPrefabRuntime } from '../receiver/PlayerPrefabRuntime';
 import type { StudioEnvironmentRuntime } from './StudioEnvironmentRuntime';
 import { SceneMaterialRuntime } from './SceneMaterialRuntime';
@@ -18,12 +19,14 @@ const COLLIDER_PATTERN = /^(?:U[BC]X)_/;
 
 export interface SceneBindings {
   disc: THREE.Object3D;
+  discCollider: THREE.Object3D;
   player: THREE.Object3D;
   speaker: THREE.Object3D;
   discSocket: THREE.Object3D;
   powerButton: THREE.Object3D;
   volumeUpButton: THREE.Object3D;
   volumeDownButton: THREE.Object3D;
+  sourceSelectButton: THREE.Object3D;
   lidInteraction: THREE.Object3D;
   colliders: THREE.Object3D[];
   editableObjects: THREE.Object3D[];
@@ -54,10 +57,36 @@ function configureMeshes(root: THREE.Object3D, colliders: THREE.Object3D[]): voi
   });
 }
 
+function ensureFallbackBoxCollider(root: THREE.Object3D, source: THREE.Object3D, colliders: THREE.Object3D[]): void {
+  if (colliders.some((collider) => {
+    let ancestor: THREE.Object3D | null = collider;
+    while (ancestor) {
+      if (ancestor === root) return true;
+      ancestor = ancestor.parent;
+    }
+    return false;
+  })) return;
+  if (!(source instanceof THREE.Mesh)) throw new Error(`Collision fallback source "${source.name}" must be a Mesh.`);
+  source.geometry.computeBoundingBox();
+  const bounds = source.geometry.boundingBox;
+  if (!bounds) throw new Error(`Collision fallback source "${source.name}" has no bounding box.`);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3()).multiply(source.scale).applyQuaternion(source.quaternion);
+  const collider = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z));
+  collider.name = 'UBX_Player_RuntimeFallback_01';
+  collider.position.copy(source.position).add(center);
+  collider.quaternion.copy(source.quaternion);
+  collider.scale.copy(source.scale);
+  collider.visible = false;
+  source.parent?.add(collider);
+  colliders.push(collider);
+}
+
 export class SceneRuntime {
   private readonly loader = new GLTFLoader();
   private readonly dracoLoader = new DRACOLoader();
   private playerRuntime: PlayerPrefabRuntime | null = null;
+  private discRuntime: DiscPrefabRuntime | null = null;
   private sceneMaterialRuntime: SceneMaterialRuntime | null = null;
   private bindingsValue: SceneBindings | null = null;
 
@@ -100,14 +129,18 @@ export class SceneRuntime {
 
     const colliders: THREE.Object3D[] = [];
     [level, cd, player, speaker].forEach((root) => configureMeshes(root, colliders));
+    ensureFallbackBoxCollider(player, requireObject(player, 'SM_Player1_Base1', ASSETS.player), colliders);
+    const discCollider = requireObject(cd, 'UCX_SM_Disk1_01', ASSETS.cd);
     this.sceneMaterialRuntime = await SceneMaterialRuntime.create(
       [level, cd, player, speaker],
       this.textureStreaming,
     );
+    this.discRuntime = await DiscPrefabRuntime.create(cd, this.studioEnvironment, this.textureStreaming);
     this.scene.add(level, cd, player, speaker);
 
     this.playerRuntime = await PlayerPrefabRuntime.create(
       player,
+      cd,
       this.store,
       ASSETS.player,
       this.studioEnvironment,
@@ -117,12 +150,14 @@ export class SceneRuntime {
 
     this.bindingsValue = {
       disc: cd,
+      discCollider,
       player,
       speaker,
       discSocket: playerBindings.discSocket,
       powerButton: playerBindings.powerButton,
       volumeUpButton: playerBindings.volumeUpButton,
       volumeDownButton: playerBindings.volumeDownButton,
+      sourceSelectButton: playerBindings.sourceSelectButton,
       lidInteraction: playerBindings.lidInteraction,
       colliders,
       editableObjects: [level, cd, player, speaker],
@@ -155,6 +190,7 @@ export class SceneRuntime {
 
   dispose(): void {
     this.playerRuntime?.dispose();
+    this.discRuntime?.dispose();
     this.sceneMaterialRuntime?.dispose();
     this.dracoLoader.dispose();
   }
