@@ -29,14 +29,14 @@
       "name": "CD",
       "type": "Group",
       "position": [
-        -0.10317523032426834,
-        0.00009606841922504827,
-        0.42152881622314453
+        0.037929411977529526,
+        0.08714360743761063,
+        0.010625893250107765
       ],
       "rotation": [
-        0.00017726078583330893,
-        -0.9753492262841928,
-        -0.001348820287159517
+        -3.141592653589793,
+        -1.5112370266310808,
+        -3.141592653589793
       ],
       "scale": [
         1,
@@ -66,10 +66,10 @@
       "visible": true
     },
     {
-      "name": "Speaker",
+      "name": "Speaker Left",
       "type": "Group",
       "position": [
-        0,
+        -0.06045006215572357,
         0.004942576866596937,
         0.42596957087516785
       ],
@@ -82,6 +82,26 @@
         1.000000000481935,
         1,
         1.000000000481935
+      ],
+      "visible": true
+    },
+    {
+      "name": "Speaker Right",
+      "type": "Group",
+      "position": [
+        -0.04077764227986336,
+        0.004942576866596937,
+        -0.4993152320384979
+      ],
+      "rotation": [
+        0,
+        -0.41965522567795516,
+        0
+      ],
+      "scale": [
+        1.0000000041840886,
+        1,
+        1.0000000041840886
       ],
       "visible": true
     },
@@ -106,7 +126,7 @@
       "visible": true,
       "properties": {
         "color": "#d7e1df",
-        "intensity": 1.35
+        "intensity": 0.47
       }
     },
     {
@@ -114,8 +134,8 @@
       "type": "SpotLight",
       "position": [
         0.7539130616278726,
-        0.436,
-        0.5563981065131086
+        0.36816336923746135,
+        0.38312882784172014
       ],
       "rotation": [
         0,
@@ -130,7 +150,7 @@
       "visible": true,
       "properties": {
         "color": "#ffffff",
-        "intensity": 7,
+        "intensity": 3.03,
         "distance": 3.89,
         "decay": 0.82,
         "castShadow": true,
@@ -150,9 +170,9 @@
       "name": "Fill Point",
       "type": "PointLight",
       "position": [
-        -0.292944871710875,
-        0.4757496032258227,
-        -0.6590211074056551
+        -0.43813931582588794,
+        0.4931832752499967,
+        -0.29479385101850386
       ],
       "rotation": [
         0,
@@ -179,27 +199,7 @@
   ],
   "materials": [
     {
-      "uuid": "e0faa998-5552-471f-abaa-2e180f75119e",
-      "name": "MI_COL",
-      "type": "MeshStandardMaterial",
-      "properties": {
-        "visible": true,
-        "opacity": 1,
-        "transparent": false,
-        "alphaTest": 0,
-        "depthTest": true,
-        "depthWrite": true,
-        "side": 2,
-        "color": "#00bcff",
-        "roughness": 0.5,
-        "metalness": 0,
-        "envMapIntensity": 1,
-        "emissive": "#000000",
-        "emissiveIntensity": 1
-      }
-    },
-    {
-      "uuid": "89e6b881-747d-4502-be3b-d63f646bd107",
+      "uuid": "867449f0-d659-4796-8b5e-0b5ae2155998",
       "name": "M_AsteroidBlack",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -219,7 +219,27 @@
       }
     },
     {
-      "uuid": "31969314-2015-4852-a756-c5577779c193",
+      "uuid": "707741a0-43b2-4566-97a2-6a3f52e98736",
+      "name": "MI_COL",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 2,
+        "color": "#00bcff",
+        "roughness": 0.5,
+        "metalness": 0,
+        "envMapIntensity": 1,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "7b1ac859-ff1a-4607-bce4-dd8b563a4c04",
       "name": "M_DiskGraphic1",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -239,7 +259,7 @@
       }
     },
     {
-      "uuid": "afe0691f-28bb-4a4f-8d45-47f83aeea812",
+      "uuid": "faf904fa-ef8f-46e2-ba8e-26e52ecaebfa",
       "name": "M_DiskTransparent",
       "type": "MeshPhysicalMaterial",
       "properties": {
@@ -276,7 +296,7 @@
       }
     },
     {
-      "uuid": "f2d4b842-26b6-4f52-b17f-c2703bcc11eb",
+      "uuid": "992b34a2-7c63-41cb-a8d1-b2d45c9b20d0",
       "name": "M_DiskMetallic",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -296,7 +316,7 @@
       }
     },
     {
-      "uuid": "24bf6de3-47e6-4116-8651-2c7d5598f242",
+      "uuid": "06e4f606-e450-4e84-97f4-0d85e26d6196",
       "name": "M_DiskAnisotrophic",
       "type": "MeshPhysicalMaterial",
       "properties": {
@@ -333,7 +353,7 @@
       }
     },
     {
-      "uuid": "32537670-e322-4da2-b832-94dd423ae3a8",
+      "uuid": "68deeb9d-8a32-4931-9852-f467b21a5cf1",
       "name": "MI_COL",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -353,7 +373,7 @@
       }
     },
     {
-      "uuid": "2f286763-b740-4b8f-aea5-6054ce7dad20",
+      "uuid": "acfaabbe-90eb-4346-9225-9d1e8e6cfdd0",
       "name": "MeshStandardMaterial",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -373,7 +393,7 @@
       }
     },
     {
-      "uuid": "417489a9-42a6-4b81-a30a-53b846515e18",
+      "uuid": "504a0044-a585-4890-ba4a-fd74215ba2ef",
       "name": "M_ControlBar_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -393,7 +413,7 @@
       }
     },
     {
-      "uuid": "ff41f77b-0f20-4cfd-83dd-c98188fe2d7b",
+      "uuid": "cfbdfc84-16c6-4828-aec8-8dab0d0efea1",
       "name": "M_Screen_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -413,7 +433,7 @@
       }
     },
     {
-      "uuid": "7c6655c5-18f2-497f-9837-6479ca5376ee",
+      "uuid": "fb0e09b6-7c22-498f-8561-d23b7a2889ed",
       "name": "M_StatusLight1_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -433,7 +453,7 @@
       }
     },
     {
-      "uuid": "2b28028e-d6fe-4612-bb6d-b089ce78e922",
+      "uuid": "d70f7eb1-973f-44ec-a55e-5467bce49a36",
       "name": "M_Player1_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -453,7 +473,7 @@
       }
     },
     {
-      "uuid": "d8101f1f-546c-43e0-bc2a-d454b3b0fd9f",
+      "uuid": "fa0ff45e-c130-45c4-aea4-92673401ee12",
       "name": "M_ScreenGlass1_Runtime",
       "type": "MeshPhysicalMaterial",
       "properties": {
@@ -490,7 +510,7 @@
       }
     },
     {
-      "uuid": "7cc7c6ec-d017-42fa-ac08-0a4ba71de2f9",
+      "uuid": "77c00f72-c4b0-43e8-a840-743aa2338cd4",
       "name": "M_GlassLid1_Runtime",
       "type": "MeshPhysicalMaterial",
       "properties": {
@@ -527,7 +547,62 @@
       }
     },
     {
-      "uuid": "41c9c058-aff5-4d4b-aadb-1353c643d2d9",
+      "uuid": "603f44b1-e35e-4c3c-a70d-0b3b6bb79972",
+      "name": "MeshBasicMaterial",
+      "type": "MeshBasicMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 0.9,
+        "transparent": true,
+        "alphaTest": 0,
+        "depthTest": false,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#39baff"
+      }
+    },
+    {
+      "uuid": "139a24e8-b285-4f5d-9fa8-662f3af867b7",
+      "name": "MeshStandardMaterial",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#ffffff",
+        "roughness": 1,
+        "metalness": 1,
+        "envMapIntensity": 1,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "4882764d-3af3-4685-9043-185b6e2b6076",
+      "name": "MI_COL",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 2,
+        "color": "#00bcff",
+        "roughness": 0.5,
+        "metalness": 0,
+        "envMapIntensity": 1,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "d5c9acba-af83-4c8f-a1cb-54aa337e8c21",
       "name": "MeshBasicMaterial",
       "type": "MeshBasicMaterial",
       "properties": {
@@ -567,7 +642,7 @@
       "amount": 0.0029
     },
     "depthOfField": {
-      "enabled": false,
+      "enabled": true,
       "autofocus": true,
       "focus": 0.36,
       "focusSpeed": 7,

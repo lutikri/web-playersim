@@ -137,6 +137,7 @@ export function applyLevelConfig(config: LevelConfig, targets: LevelConfigTarget
       if (createdLight instanceof THREE.SpotLight) scene.add(createdLight.target);
       object = createdLight;
     }
+    if (object.userData.markerDriven === true) return;
     applyTransform(object, objectConfig);
     if (isEditableLight(object)) applyLightProperties(object, objectConfig.properties);
   });

@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "textures": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-textures.ps1",
     "textures:force": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-textures.ps1 -Force",
+    "audio": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-audio.ps1",
+    "audio:force": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-audio.ps1 -Force",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "test": "vitest run",
@@ -17,6 +19,7 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "lil-gui": "^0.20.0",
+    "music-metadata": "^11.14.0",
     "three": "^0.180.0"
   },
   "devDependencies": {

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { Store } from './app/Store';
+import { TrackRuntime } from './audio/TrackRuntime';
+import { PlayerFoleyRuntime } from './audio/PlayerFoleyRuntime';
 import levelConfigJson from './config/level-config.json';
 import { applyLevelConfig, type LevelConfig } from './config/LevelConfigRuntime';
 import { DebugPanel } from './debug/DebugPanel';
@@ -22,6 +24,8 @@ const canvas = requireElement<HTMLCanvasElement>('#scene');
 const loading = requireElement<HTMLElement>('#loading');
 const status = requireElement<HTMLElement>('#status');
 const debugToggle = requireElement<HTMLButtonElement>('#debug-toggle');
+const loadTrackButton = requireElement<HTMLButtonElement>('#load-track');
+const trackFileInput = requireElement<HTMLInputElement>('#track-file');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -59,6 +63,8 @@ const levelConfig = levelConfigJson as unknown as LevelConfig;
 const postProcessing = new PostProcessingRuntime(renderer, scene, camera, levelConfig.postProcessing);
 let interactionRuntime: InteractionRuntime | null = null;
 let physicsRuntime: PhysicsRuntime | null = null;
+let trackRuntime: TrackRuntime | null = null;
+let playerFoleyRuntime: PlayerFoleyRuntime | null = null;
 let debugPanel: DebugPanel | null = null;
 let disposed = false;
 let shadowBurstSeconds = 1;
@@ -67,8 +73,11 @@ let idleShadowElapsed = 0;
 function updateStatus(): void {
   const state = store.getState();
   const power = state.power === 'starting' ? 'STARTING' : state.power.toUpperCase();
-  const disc = state.discLocation === 'player' ? 'CD LOADED' : state.discLocation === 'dragging' ? 'MOVING CD' : 'CD READY';
-  status.textContent = `${power}  /  ${state.selectedSource.toUpperCase()}  /  ${state.transport.toUpperCase()}  /  ${state.volumeDb} dB  /  ${disc}`;
+  const disc = state.insertedDiscId !== null
+    ? `CD ${state.insertedDiscId} LOADED`
+    : state.draggedDiscId !== null ? `MOVING CD ${state.draggedDiscId}` : `${state.discs.length} CD${state.discs.length === 1 ? '' : 'S'}`;
+  const track = state.tracks[state.currentTrackIndex]?.title ?? 'NO TRACK';
+  status.textContent = `${power}  /  ${state.selectedSource.toUpperCase()}  /  ${state.transport.toUpperCase()}  /  VOL ${String(state.volume).padStart(2, '0')}  /  ${disc}  /  ${track}`;
 }
 
 store.subscribe(updateStatus);
@@ -92,6 +101,15 @@ async function start(): Promise<void> {
       sceneRuntime,
       physicsRuntime,
     );
+    trackRuntime = new TrackRuntime(
+      store,
+      camera,
+      bindings,
+      physicsRuntime,
+      sceneRuntime,
+      (id, root) => interactionRuntime?.registerDisc(id, root),
+    );
+    playerFoleyRuntime = new PlayerFoleyRuntime(store, bindings, trackRuntime);
     debugPanel = new DebugPanel(
       scene,
       camera,
@@ -102,6 +120,7 @@ async function start(): Promise<void> {
       postProcessing,
     );
     debugToggle.addEventListener('click', () => debugPanel?.toggle());
+    loadTrackButton.disabled = false;
     textureStreaming.startDeferredUpgrades();
     loading.classList.add('is-hidden');
   } catch (error) {
@@ -123,6 +142,7 @@ renderer.setAnimationLoop(() => {
     || (physicsRuntime?.needsShadowUpdate() ?? false);
   textureStreaming.update(deltaSeconds);
   cameraRuntime.update(deltaSeconds);
+  trackRuntime?.update(deltaSeconds);
   interactionRuntime?.update(deltaSeconds);
   physicsRuntime?.update(deltaSeconds);
   sceneRuntime.update(deltaSeconds);
@@ -140,7 +160,9 @@ function dispose(): void {
   disposed = true;
   renderer.setAnimationLoop(null);
   interactionRuntime?.dispose();
+  playerFoleyRuntime?.dispose();
   physicsRuntime?.dispose();
+  trackRuntime?.dispose();
   debugPanel?.dispose();
   cameraRuntime.dispose();
   sceneRuntime.dispose();
@@ -152,4 +174,23 @@ function dispose(): void {
 
 window.addEventListener('resize', resize);
 window.addEventListener('beforeunload', dispose, { once: true });
+loadTrackButton.addEventListener('click', () => trackFileInput.click());
+trackFileInput.addEventListener('change', async () => {
+  const files = [...(trackFileInput.files ?? [])];
+  if (files.length === 0 || !trackRuntime) return;
+  loadTrackButton.disabled = true;
+  loadTrackButton.textContent = 'LOADING...';
+  try {
+    await trackRuntime.loadTracks(files);
+    loadTrackButton.textContent = 'LOAD TRACK';
+    loadTrackButton.title = `${files.length} track${files.length === 1 ? '' : 's'} loaded`;
+  } catch (error) {
+    loadTrackButton.textContent = 'LOAD FAILED';
+    loadTrackButton.title = error instanceof Error ? error.message : 'Track loading failed.';
+    console.error(error);
+  } finally {
+    loadTrackButton.disabled = false;
+    trackFileInput.value = '';
+  }
+});
 void start();

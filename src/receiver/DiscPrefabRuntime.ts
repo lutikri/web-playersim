@@ -53,7 +53,11 @@ export function applyDiscRadialTangents(geometry: THREE.BufferGeometry): void {
 }
 
 export class DiscPrefabRuntime {
+  private coverTexture: THREE.Texture | null = null;
+
   private constructor(
+    private readonly graphicMaterial: THREE.MeshStandardMaterial,
+    private readonly defaultGraphicMap: THREE.Texture | null,
     private readonly materials: THREE.Material[],
     private readonly textureStream: TextureStreamHandle,
     private readonly releaseEnvironmentBindings: Array<() => void>,
@@ -139,15 +143,37 @@ export class DiscPrefabRuntime {
       studioEnvironment.bindMaterial(anisotrophic, 1.65),
     ];
     return new DiscPrefabRuntime(
+      graphic,
+      graphic.map,
       [graphic, transparent, metallic, anisotrophic],
       textureStream,
       releaseEnvironmentBindings,
     );
   }
 
+  async setCoverBlob(cover: Blob | null): Promise<void> {
+    this.coverTexture?.dispose();
+    this.coverTexture = null;
+    if (!cover) {
+      this.graphicMaterial.map = this.defaultGraphicMap;
+      this.graphicMaterial.needsUpdate = true;
+      return;
+    }
+    const bitmap = await createImageBitmap(cover);
+    const texture = new THREE.Texture(bitmap);
+    texture.name = 'LoadedTrackCover';
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+    texture.needsUpdate = true;
+    this.coverTexture = texture;
+    this.graphicMaterial.map = texture;
+    this.graphicMaterial.needsUpdate = true;
+  }
+
   dispose(): void {
     this.releaseEnvironmentBindings.forEach((release) => release());
     this.textureStream.dispose();
+    this.coverTexture?.dispose();
     this.materials.forEach((material) => material.dispose());
   }
 }

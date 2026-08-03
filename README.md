@@ -23,6 +23,14 @@ npm run textures
 
 The converter skips current outputs. Use `npm run textures:force` to rebuild every tier.
 
+Regenerate browser-ready Ogg Opus foley after changing WAV masters in `assets-source/audio/`:
+
+```bash
+npm run audio
+```
+
+Use `npm run audio:force` to rebuild every sound.
+
 ## Controls
 
 - `WASD`: move the free camera
@@ -48,6 +56,10 @@ The level editor uses an inspector workflow. Select prefab roots from `Objects`,
 
 `DotMatrixDisplay` renders the receiver canvas from explicit square-cell glyphs. The idle state shows a compact weekday beside a larger 24-hour clock; startup and transport messages reuse the same pixel grid without browser font rasterization.
 
+`TrackRuntime` accepts one or more local FLAC, WAV and MP3 files, extracts embedded metadata/artwork, decodes them through Web Audio and keeps the playlist in browser memory. Each file-selection batch creates a separate physical disc with its own playlist, audio buffers and `M_DiskGraphic1` artwork. Discs are arranged around `PF_CD1`, have independent Rapier bodies, and any table disc can be dragged into the empty player tray. Loading another album does not replace or stop the currently inserted disc. Stereo channels are split into independent HRTF point sources attached to `SP_SpeakerLow1` on the left and right speaker prefabs. Receiver volume uses the display scale `00-99` with `12` as the default and `30` as nominal full gain. The screen Prev/Next/Stop hitboxes control the inserted disc's playlist.
+
+`PlayerFoleyRuntime` plays preconverted Ogg Opus button, power, lid, disc-fit, disc-remove and reading sounds from the player prefab origin. Reading audio follows the same explicit state as the display and disc spin, so cancellation on source, power or lid changes also stops its loop.
+
 Runtime asset URLs are centralized in `SceneRuntime`. Required Blender nodes fail with an explicit asset-path error. Collision meshes matching `UBX_` or `UCX_` are hidden by default and can be inspected from `Level > Show collision`.
 
 Player texture masters remain in ignored `assets-source/textures/`. The converter creates mipmapped KTX2/ETC1S files under `assets/runtime-textures/`. Runtime requires only the 1K tier for its first frame, upgrades one texture set at a time to 4K, and releases the replaced GPU textures after each complete set is applied. The player 8K tier is gated behind 12 seconds of stable 55+ FPS, 8K GPU texture support, at least 8 GB reported device memory when that API is available, and disabled browser data-saving mode. The 2K asteroid masters stop at 2K rather than being upscaled.
@@ -58,4 +70,4 @@ Scene units are meters. The current receiver is about 0.39 m wide and the CD is 
 
 ## Current scope
 
-This slice covers prefab placement, free camera, physical button feedback, the red/off/blue power indicator sequence, state-driven screen/control bar, the animated CD lid, spring-driven physical CD drag and player snap, project-backed level editing, and the first post-processing pipeline. Playback/audio, disc cases and LUT grading remain later systems.
+This slice covers prefab placement, free camera, physical button feedback and foley, the red/off/blue power indicator sequence, state-driven screen/control bar, the animated CD lid and disc spin, spring-driven physical CD drag/removal/player snap, local playlist playback, project-backed level editing, and the post-processing pipeline. Disc cases and LUT grading remain later systems.

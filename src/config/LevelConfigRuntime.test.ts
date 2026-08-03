@@ -50,4 +50,24 @@ describe('level config runtime', () => {
     expect(renderer.toneMappingExposure).toBe(1.4);
     expect(environment).toEqual({ intensity: 0.8, rotationDegrees: 35 });
   });
+
+  it('does not overwrite Blender marker-driven prefab transforms', () => {
+    const scene = new THREE.Scene();
+    const speaker = new THREE.Group();
+    speaker.name = 'Speaker Left';
+    speaker.position.set(4, 5, 6);
+    speaker.userData.markerDriven = true;
+    scene.add(speaker);
+    applyLevelConfig({
+      objects: [{
+        name: 'Speaker Left', type: 'Group', position: [1, 2, 3], rotation: [0, 0, 0],
+        scale: [1, 1, 1], visible: true,
+      }],
+    }, {
+      scene,
+      renderer: { toneMappingExposure: 1 } as THREE.WebGLRenderer,
+      studioEnvironment: { intensity: 1, rotationDegrees: 0 } as never,
+    });
+    expect(speaker.position.toArray()).toEqual([4, 5, 6]);
+  });
 });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { AppEvent, AppState, InputSource, Store } from '../app/Store';
+import type { AppState, InputSource, Store } from '../app/Store';
 import type { StudioEnvironmentRuntime } from '../scene/StudioEnvironmentRuntime';
 import type { TextureMaps, TextureStreamingRuntime, TextureStreamHandle } from '../scene/TextureStreamingRuntime';
 import { drawDotMatrixText, measureDotMatrixText, type DotMatrixTextStyle } from './DotMatrixDisplay';
@@ -75,6 +75,10 @@ export interface PlayerPrefabBindings {
   volumeUpButton: THREE.Object3D;
   volumeDownButton: THREE.Object3D;
   sourceSelectButton: THREE.Object3D;
+  playPauseButton: THREE.Object3D;
+  nextButton: THREE.Object3D;
+  previousButton: THREE.Object3D;
+  stopButton: THREE.Object3D;
   lidInteraction: THREE.Object3D;
   lidRotationParent: THREE.Object3D;
 }
@@ -137,9 +141,10 @@ export class PlayerPrefabRuntime {
   private volumeOverlayElapsed = 0;
   private cdReadingElapsed: number | null = null;
   private cdReadingDuration = 0;
-  private cdReadComplete = false;
   private cdBlinkVisible = true;
+  private disc: THREE.Object3D | null = null;
   private discSpinAngle = 0;
+  private discSpinVelocity = 0;
   private lidElapsed = 0;
   private lidStartAngle = 0;
   private lidTargetAngle = 0;
@@ -151,7 +156,6 @@ export class PlayerPrefabRuntime {
 
   private constructor(
     bindings: PlayerPrefabBindings,
-    private readonly disc: THREE.Object3D,
     private readonly store: Store,
     materials: {
       body: THREE.MeshStandardMaterial;
@@ -177,14 +181,13 @@ export class PlayerPrefabRuntime {
     [bindings.powerButton, bindings.volumeUpButton, bindings.volumeDownButton].forEach((button) => {
       this.animatedButtons.set(button, { baseY: button.position.y, pressedUntil: 0 });
     });
-    this.unsubscribe = store.subscribe((next, previous, event) => this.onState(next, previous, event));
+    this.unsubscribe = store.subscribe((next, previous) => this.onState(next, previous));
     this.applyPowerPresentation(store.getState());
     this.drawDisplay(store.getState());
   }
 
   static async create(
     root: THREE.Object3D,
-    disc: THREE.Object3D,
     store: Store,
     assetPath: string,
     studioEnvironment: StudioEnvironmentRuntime,
@@ -268,9 +271,13 @@ export class PlayerPrefabRuntime {
       volumeUpButton: requireObject(root, 'SM_Button_VOLUP', assetPath),
       volumeDownButton: requireObject(root, 'SM_Button_VOLDOWN', assetPath),
       sourceSelectButton: requireObject(root, 'BtnScreen_SELECT', assetPath),
+      playPauseButton: requireObject(root, 'BtnScreen_PlayPause', assetPath),
+      nextButton: requireObject(root, 'BtnScreen_Next', assetPath),
+      previousButton: requireObject(root, 'BtnScreen_Prev', assetPath),
+      stopButton: requireObject(root, 'BtnScreen_Stop', assetPath),
       lidInteraction: requireObject(root, 'SM_CDLid', assetPath),
       lidRotationParent: requireObject(root, 'CDLidRotParent1', assetPath),
-    }, disc, store, { body, screen, screenGlass, lidGlass, status, controlBar: controlBarMaterial }, [
+    }, store, { body, screen, screenGlass, lidGlass, status, controlBar: controlBarMaterial }, [
       screenTexture,
     ], [bodyTextureStream, controlBarTextureStream], screenCanvas);
     runtime.releaseEnvironmentBindings.push(
@@ -284,6 +291,10 @@ export class PlayerPrefabRuntime {
   pulseButton(button: THREE.Object3D): void {
     const animation = this.animatedButtons.get(button);
     if (animation) animation.pressedUntil = performance.now() + 130;
+  }
+
+  setDisc(disc: THREE.Object3D | null): void {
+    this.disc = disc;
   }
 
   refreshPresentation(): void {
@@ -306,6 +317,11 @@ export class PlayerPrefabRuntime {
       if (this.volumeOverlayElapsed === 0) this.drawDisplay(this.store.getState());
     }
     this.updateCdReading(deltaSeconds);
+    const discSpinTarget = this.cdReadingElapsed !== null
+      ? 11
+      : this.store.getState().playback === 'playing' ? 8 : 0;
+    this.discSpinVelocity = THREE.MathUtils.damp(this.discSpinVelocity, discSpinTarget, 3.5, deltaSeconds);
+    this.discSpinAngle = (this.discSpinAngle + this.discSpinVelocity * deltaSeconds) % (Math.PI * 2);
     if (this.lidAnimating) this.updateLid(deltaSeconds);
     const now = performance.now();
     this.animatedButtons.forEach((animation, button) => {
@@ -316,7 +332,8 @@ export class PlayerPrefabRuntime {
     if (this.store.getState().power === 'off' && minute !== this.displayedMinute) {
       this.drawDisplay(this.store.getState());
     }
-    if (this.store.getState().discLocation === 'player') {
+    if (this.store.getState().insertedDiscId !== null && this.disc) {
+      // Physics restores the snapped root quaternion every frame, so reapply the full visual phase.
       this.disc.rotateY(this.discSpinAngle);
     }
   }
@@ -329,7 +346,7 @@ export class PlayerPrefabRuntime {
     this.ownedTextures.forEach((texture) => texture.dispose());
   }
 
-  private onState(next: AppState, previous: AppState, event: AppEvent): void {
+  private onState(next: AppState, previous: AppState): void {
     if (next.power !== previous.power) {
       this.starting = next.power === 'starting';
       this.startupElapsed = 0;
@@ -338,7 +355,7 @@ export class PlayerPrefabRuntime {
       if (next.power === 'on' && next.selectedSource === 'cd') this.startCdReading(next);
       this.applyPowerPresentation(next);
     }
-    if (next.volumeDb !== previous.volumeDb && next.power === 'on') this.volumeOverlayElapsed = 1;
+    if (next.volume !== previous.volume && next.power === 'on') this.volumeOverlayElapsed = 1;
     if (next.selectedSource !== previous.selectedSource) {
       this.cancelCdReading();
       if (next.selectedSource === 'cd') this.startCdReading(next);
@@ -348,30 +365,30 @@ export class PlayerPrefabRuntime {
       if (next.transport !== 'closed') this.cancelCdReading();
       if (next.transport === 'closed' && next.selectedSource === 'cd') this.startCdReading(next);
     }
-    if (event.type === 'DISC_DROPPED' && next.discLocation === 'player') this.cdReadComplete = false;
     this.drawDisplay(next);
   }
 
   private startCdReading(state: AppState): void {
     if (state.power !== 'on' || state.selectedSource !== 'cd' || state.transport !== 'closed') return;
     this.cdReadingElapsed = 0;
-    this.cdReadingDuration = state.discLocation === 'player'
+    this.cdReadingDuration = state.insertedDiscId !== null && state.tracks.length > 0
       ? CD_READING_WITH_DISC_SECONDS
       : CD_READING_EMPTY_SECONDS;
-    this.cdReadComplete = false;
     this.cdBlinkVisible = true;
+    this.store.dispatch({ type: 'CD_READING_STARTED' });
   }
 
   private cancelCdReading(): void {
+    const wasReading = this.cdReadingElapsed !== null;
     this.cdReadingElapsed = null;
     this.cdBlinkVisible = true;
+    if (wasReading) this.store.dispatch({ type: 'CD_READING_STOPPED' });
   }
 
   private updateCdReading(deltaSeconds: number): void {
     if (this.cdReadingElapsed === null) return;
     const state = this.store.getState();
     this.cdReadingElapsed += deltaSeconds;
-    if (state.discLocation === 'player') this.discSpinAngle += deltaSeconds * 11;
     const blinkVisible = Math.floor(this.cdReadingElapsed / CD_BLINK_SECONDS) % 2 === 0;
     if (blinkVisible !== this.cdBlinkVisible) {
       this.cdBlinkVisible = blinkVisible;
@@ -379,9 +396,13 @@ export class PlayerPrefabRuntime {
     }
     if (this.cdReadingElapsed < this.cdReadingDuration) return;
     this.cdReadingElapsed = null;
-    this.cdReadComplete = state.discLocation === 'player';
     this.cdBlinkVisible = true;
-    this.drawDisplay(state);
+    if (state.insertedDiscId !== null && state.tracks.length > 0) {
+      this.store.dispatch({ type: 'CD_READING_FINISHED' });
+    } else {
+      this.store.dispatch({ type: 'CD_READING_STOPPED' });
+      this.drawDisplay(state);
+    }
   }
 
   private startLidTransition(state: AppState): void {
@@ -395,7 +416,7 @@ export class PlayerPrefabRuntime {
   private updateLid(deltaSeconds: number): void {
     this.lidElapsed += deltaSeconds;
     const progress = Math.min(1, this.lidElapsed / LID_TRANSITION_SECONDS);
-    const eased = progress * progress * (3 - 2 * progress);
+    const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
     this.lidCurrentAngle = THREE.MathUtils.lerp(
       this.lidStartAngle,
       this.lidTargetAngle,
@@ -446,17 +467,17 @@ export class PlayerPrefabRuntime {
       drawDotMatrixText(context, time, groupX + dayWidth + groupGap, 41, CLOCK_STYLE);
       this.displayedMinute = now.getMinutes();
     } else if (state.power === 'starting') {
-      if (this.powerDisplayPhase === 'volume') this.drawVolume(context, state.volumeDb);
+      if (this.powerDisplayPhase === 'volume') this.drawVolume(context, state.volume);
     } else if (this.volumeOverlayElapsed > 0) {
-      this.drawVolume(context, state.volumeDb);
+      this.drawVolume(context, state.volume);
     } else {
       this.drawSource(context, state);
     }
     this.screenTexture.needsUpdate = true;
   }
 
-  private drawVolume(context: CanvasRenderingContext2D, volumeDb: number): void {
-    const label = `VOLUME ${volumeDb}`;
+  private drawVolume(context: CanvasRenderingContext2D, volume: number): void {
+    const label = `VOLUME ${String(volume).padStart(2, '0')}`;
     const width = measureDotMatrixText(label, VOLUME_STYLE);
     const boxX = 10;
     const boxY = 24;
@@ -484,7 +505,7 @@ export class PlayerPrefabRuntime {
       bluetooth: 'BLUETOOTH',
       cd: 'CD',
     };
-    this.drawHeader(context, labels[state.selectedSource], state.volumeDb);
+    this.drawHeader(context, labels[state.selectedSource], state.volume);
     switch (state.selectedSource) {
       case 'spotify':
         return;
@@ -508,10 +529,10 @@ export class PlayerPrefabRuntime {
     }
   }
 
-  private drawHeader(context: CanvasRenderingContext2D, source: string, volumeDb: number): void {
+  private drawHeader(context: CanvasRenderingContext2D, source: string, volume: number): void {
     drawDotMatrixText(context, source, 18, 16, HEADER_STYLE);
     drawDotMatrixText(context, 'TONE', 350, 16, HEADER_STYLE);
-    drawDotMatrixText(context, `<${volumeDb}`, 440, 16, HEADER_STYLE);
+    drawDotMatrixText(context, `<${String(volume).padStart(2, '0')}`, 440, 16, HEADER_STYLE);
   }
 
   private drawCdState(context: CanvasRenderingContext2D, state: AppState): void {
@@ -523,12 +544,32 @@ export class PlayerPrefabRuntime {
       if (this.cdBlinkVisible) this.drawCenteredMessage(context, 'READING', 66, BODY_STYLE);
       return;
     }
-    if (this.cdReadComplete && state.discLocation === 'player') {
-      drawDotMatrixText(context, 'TOTAL TRACK 1', 54, 62, BODY_STYLE);
-      drawDotMatrixText(context, '0:00', 405, 116, HEADER_STYLE);
+    if (state.discReady && state.insertedDiscId !== null) {
+      const currentTrack = state.tracks[state.currentTrackIndex];
+      if (state.playback !== 'stopped') {
+        const marker = state.playback === 'playing' ? '>' : ' ';
+        drawDotMatrixText(
+          context,
+          `${marker} TRACK ${String(state.currentTrackIndex + 1).padStart(2, '0')}`,
+          54,
+          62,
+          BODY_STYLE,
+        );
+        drawDotMatrixText(context, this.formatDuration(state.playbackSeconds), 54, 116, HEADER_STYLE);
+        drawDotMatrixText(context, this.formatDuration(currentTrack?.durationSeconds ?? 0), 405, 116, HEADER_STYLE);
+        return;
+      }
+      const totalDuration = state.tracks.reduce((sum, track) => sum + track.durationSeconds, 0);
+      drawDotMatrixText(context, `TOTAL TRACK ${state.tracks.length}`, 42, 62, BODY_STYLE);
+      drawDotMatrixText(context, this.formatDuration(totalDuration), 405, 116, HEADER_STYLE);
       return;
     }
     this.drawCenteredMessage(context, 'NO DISC', 66, BODY_STYLE);
+  }
+
+  private formatDuration(durationSeconds: number): string {
+    const seconds = Math.max(0, Math.round(durationSeconds));
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   }
 
   private drawCenteredMessage(

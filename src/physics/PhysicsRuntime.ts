@@ -10,10 +10,18 @@ import type { SceneBindings } from '../scene/SceneRuntime';
 type RapierModule = typeof RAPIER;
 
 interface GrabConstraint {
+  discId: number;
   anchorBody: RigidBody;
   joint: ImpulseJoint;
   priorAngularDamping: number;
   priorLinearDamping: number;
+}
+
+interface DiscPhysicsState {
+  root: THREE.Object3D;
+  body: RigidBody;
+  initialPosition: THREE.Vector3;
+  initialQuaternion: THREE.Quaternion;
 }
 
 const FIXED_TIMESTEP = 1 / 60;
@@ -58,19 +66,12 @@ export function hasColliderForRoot(colliders: THREE.Object3D[], root: THREE.Obje
 export class PhysicsRuntime {
   private accumulator = 0;
   private grabConstraint: GrabConstraint | null = null;
-  private readonly initialPosition: THREE.Vector3;
-  private readonly initialQuaternion: THREE.Quaternion;
+  private readonly discs = new Map<number, DiscPhysicsState>();
 
   private constructor(
     private readonly rapier: RapierModule,
     private readonly world: World,
-    private readonly disc: THREE.Object3D,
-    private readonly discBody: RigidBody,
-  ) {
-    const initial = worldTransform(disc);
-    this.initialPosition = initial.position;
-    this.initialQuaternion = initial.quaternion;
-  }
+  ) {}
 
   static async create(bindings: SceneBindings): Promise<PhysicsRuntime> {
     const { default: RAPIER } = await import('@dimforge/rapier3d-compat');
@@ -102,12 +103,17 @@ export class PhysicsRuntime {
     };
 
     bindings.colliders.forEach((object) => {
-      if (object === bindings.discCollider || !(object instanceof THREE.Mesh)) return;
+      if (!(object instanceof THREE.Mesh)) return;
       createStaticBox(object);
     });
-    const discTransform = worldTransform(bindings.disc);
-    const discBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.dynamic()
+    return new PhysicsRuntime(RAPIER, world);
+  }
+
+  registerDisc(id: number, root: THREE.Object3D, collider: THREE.Object3D): void {
+    if (this.discs.has(id)) throw new Error(`Disc physics id ${id} is already registered.`);
+    const discTransform = worldTransform(root);
+    const body = this.world.createRigidBody(
+      this.rapier.RigidBodyDesc.dynamic()
         .setTranslation(discTransform.position.x, discTransform.position.y, discTransform.position.z)
         .setRotation(discTransform.quaternion)
         .setLinearDamping(0.65)
@@ -115,22 +121,21 @@ export class PhysicsRuntime {
         .setCcdEnabled(true)
         .setCanSleep(true),
     );
-    const collider = bindings.discCollider;
     if (!(collider instanceof THREE.Mesh)) throw new Error('Disc collider UCX_SM_Disk1_01 must be a Mesh.');
     collider.geometry.computeBoundingBox();
     const colliderBox = collider.geometry.boundingBox;
     if (!colliderBox) throw new Error('Disc collider UCX_SM_Disk1_01 has no bounding box.');
     collider.updateWorldMatrix(true, false);
-    bindings.disc.updateWorldMatrix(true, false);
-    const colliderInDisc = bindings.disc.matrixWorld.clone().invert().multiply(collider.matrixWorld);
+    root.updateWorldMatrix(true, false);
+    const colliderInDisc = root.matrixWorld.clone().invert().multiply(collider.matrixWorld);
     const relativePosition = new THREE.Vector3();
     const relativeQuaternion = new THREE.Quaternion();
     const relativeScale = new THREE.Vector3();
     colliderInDisc.decompose(relativePosition, relativeQuaternion, relativeScale);
     const colliderSize = colliderBox.getSize(new THREE.Vector3()).multiply(relativeScale);
     const colliderCenter = colliderBox.getCenter(new THREE.Vector3()).applyMatrix4(colliderInDisc);
-    world.createCollider(
-      RAPIER.ColliderDesc.cylinder(
+    this.world.createCollider(
+      this.rapier.ColliderDesc.cylinder(
         Math.max(Math.abs(colliderSize.y) * 0.5, 0.001),
         Math.max(Math.abs(colliderSize.x), Math.abs(colliderSize.z)) * 0.5,
       )
@@ -139,9 +144,14 @@ export class PhysicsRuntime {
         .setDensity(400)
         .setFriction(0.42)
         .setRestitution(0.04),
-      discBody,
+      body,
     );
-    return new PhysicsRuntime(RAPIER, world, bindings.disc, discBody);
+    this.discs.set(id, {
+      root,
+      body,
+      initialPosition: discTransform.position,
+      initialQuaternion: discTransform.quaternion,
+    });
   }
 
   update(deltaSeconds: number): void {
@@ -151,16 +161,17 @@ export class PhysicsRuntime {
       this.world.step();
       this.accumulator -= FIXED_TIMESTEP;
     }
-    this.syncDiscObject();
+    this.discs.forEach((disc) => this.syncDiscObject(disc));
   }
 
-  beginDiscGrab(worldPoint: THREE.Vector3): void {
+  beginDiscGrab(discId: number, worldPoint: THREE.Vector3): void {
     this.endDiscGrab();
-    this.discBody.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
-    this.discBody.setEnabled(true);
-    this.discBody.enableCcd(true);
-    const bodyPosition = this.discBody.translation();
-    const bodyRotation = this.discBody.rotation();
+    const disc = this.requireDisc(discId);
+    disc.body.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
+    disc.body.setEnabled(true);
+    disc.body.enableCcd(true);
+    const bodyPosition = disc.body.translation();
+    const bodyRotation = disc.body.rotation();
     const inverseRotation = new THREE.Quaternion(
       bodyRotation.x,
       bodyRotation.y,
@@ -174,7 +185,7 @@ export class PhysicsRuntime {
       this.rapier.RigidBodyDesc.kinematicPositionBased()
         .setTranslation(worldPoint.x, worldPoint.y, worldPoint.z),
     );
-    const mass = Math.max(0.01, this.discBody.mass());
+    const mass = Math.max(0.01, disc.body.mass());
     const naturalFrequency = 22;
     const stiffness = mass * naturalFrequency * naturalFrequency;
     const damping = 2 * 0.82 * mass * naturalFrequency;
@@ -187,18 +198,19 @@ export class PhysicsRuntime {
         localGrabPoint,
       ),
       anchorBody,
-      this.discBody,
+      disc.body,
       true,
     );
     this.grabConstraint = {
+      discId,
       anchorBody,
       joint,
-      priorAngularDamping: this.discBody.angularDamping(),
-      priorLinearDamping: this.discBody.linearDamping(),
+      priorAngularDamping: disc.body.angularDamping(),
+      priorLinearDamping: disc.body.linearDamping(),
     };
-    this.discBody.setLinearDamping(1.6);
-    this.discBody.setAngularDamping(1.15);
-    this.discBody.wakeUp();
+    disc.body.setLinearDamping(1.6);
+    disc.body.setAngularDamping(1.15);
+    disc.body.wakeUp();
   }
 
   driveDiscGrab(target: THREE.Vector3, deltaSeconds: number): void {
@@ -207,47 +219,51 @@ export class PhysicsRuntime {
     const current = new THREE.Vector3(currentValue.x, currentValue.y, currentValue.z);
     const next = limitGrabAnchorMovement(current, target, deltaSeconds);
     this.grabConstraint.anchorBody.setNextKinematicTranslation(next);
-    this.discBody.wakeUp();
+    this.requireDisc(this.grabConstraint.discId).body.wakeUp();
   }
 
   endDiscGrab(): void {
     const constraint = this.grabConstraint;
     if (!constraint) return;
-    this.discBody.setLinearDamping(constraint.priorLinearDamping);
-    this.discBody.setAngularDamping(constraint.priorAngularDamping);
+    const disc = this.requireDisc(constraint.discId);
+    disc.body.setLinearDamping(constraint.priorLinearDamping);
+    disc.body.setAngularDamping(constraint.priorAngularDamping);
     if (constraint.joint.isValid()) this.world.removeImpulseJoint(constraint.joint, true);
     this.world.removeRigidBody(constraint.anchorBody);
     this.grabConstraint = null;
-    this.discBody.wakeUp();
+    disc.body.wakeUp();
   }
 
-  snapDisc(worldPosition: THREE.Vector3, worldQuaternion: THREE.Quaternion): void {
+  snapDisc(discId: number, worldPosition: THREE.Vector3, worldQuaternion: THREE.Quaternion): void {
     this.endDiscGrab();
-    this.discBody.setBodyType(this.rapier.RigidBodyType.KinematicPositionBased, true);
-    this.discBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.discBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    this.discBody.setTranslation(worldPosition, true);
-    this.discBody.setRotation(worldQuaternion, true);
-    this.syncDiscObject();
+    const disc = this.requireDisc(discId);
+    disc.body.setBodyType(this.rapier.RigidBodyType.KinematicPositionBased, true);
+    disc.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    disc.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    disc.body.setTranslation(worldPosition, true);
+    disc.body.setRotation(worldQuaternion, true);
+    this.syncDiscObject(disc);
   }
 
-  resetDisc(): void {
+  resetDisc(discId: number): void {
     this.endDiscGrab();
-    this.discBody.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
-    this.discBody.setTranslation(this.initialPosition, true);
-    this.discBody.setRotation(this.initialQuaternion, true);
-    this.discBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.discBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    this.syncDiscObject();
+    const disc = this.requireDisc(discId);
+    disc.body.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
+    disc.body.setTranslation(disc.initialPosition, true);
+    disc.body.setRotation(disc.initialQuaternion, true);
+    disc.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    disc.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.syncDiscObject(disc);
   }
 
-  getDiscWorldPosition(target = new THREE.Vector3()): THREE.Vector3 {
-    const translation = this.discBody.translation();
+  getDiscWorldPosition(discId: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const translation = this.requireDisc(discId).body.translation();
     return target.set(translation.x, translation.y, translation.z);
   }
 
   needsShadowUpdate(): boolean {
-    return this.grabConstraint !== null || (this.discBody.isDynamic() && !this.discBody.isSleeping());
+    if (this.grabConstraint !== null) return true;
+    return [...this.discs.values()].some((disc) => disc.body.isDynamic() && !disc.body.isSleeping());
   }
 
   dispose(): void {
@@ -255,19 +271,25 @@ export class PhysicsRuntime {
     this.world.free();
   }
 
-  private syncDiscObject(): void {
-    const translation = this.discBody.translation();
-    const rotation = this.discBody.rotation();
+  private requireDisc(id: number): DiscPhysicsState {
+    const disc = this.discs.get(id);
+    if (!disc) throw new Error(`Unknown disc physics id ${id}.`);
+    return disc;
+  }
+
+  private syncDiscObject(disc: DiscPhysicsState): void {
+    const translation = disc.body.translation();
+    const rotation = disc.body.rotation();
     const worldMatrix = new THREE.Matrix4().compose(
       new THREE.Vector3(translation.x, translation.y, translation.z),
       new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
       new THREE.Vector3(1, 1, 1),
     );
-    if (this.disc.parent) {
-      this.disc.parent.updateWorldMatrix(true, false);
-      worldMatrix.premultiply(this.disc.parent.matrixWorld.clone().invert());
+    if (disc.root.parent) {
+      disc.root.parent.updateWorldMatrix(true, false);
+      worldMatrix.premultiply(disc.root.parent.matrixWorld.clone().invert());
     }
     const scale = new THREE.Vector3();
-    worldMatrix.decompose(this.disc.position, this.disc.quaternion, scale);
+    worldMatrix.decompose(disc.root.position, disc.root.quaternion, scale);
   }
 }

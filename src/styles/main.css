@@ -77,6 +77,32 @@ button {
   cursor: pointer;
 }
 
+#load-track {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  min-width: 108px;
+  height: 30px;
+  padding: 0 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 4px;
+  background: rgb(12 14 13 / 82%);
+  color: rgb(238 241 236 / 84%);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+#load-track:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 44%);
+  color: #fff;
+}
+
+#load-track:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
 #debug-toggle:hover {
   color: #fff;
   border-color: rgb(255 255 255 / 36%);
