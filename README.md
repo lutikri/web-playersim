@@ -21,7 +21,7 @@ Regenerate GPU-compressed runtime textures after changing a master in `assets-so
 npm run textures
 ```
 
-The converter skips current outputs. Use `npm run textures:force` to rebuild every tier.
+The converter skips current outputs. Use `npm run textures:4k` for ETC1S, `npm run textures:8k` for the native player cinematic tier, or `npm run textures:cinematic` to refresh every original-PNG high tier. `npm run textures:force` rebuilds every adaptive ETC1S tier.
 
 Regenerate browser-ready Ogg Opus foley after changing WAV masters in `assets-source/audio/`:
 
@@ -62,7 +62,11 @@ The level editor uses an inspector workflow. Select prefab roots from `Objects`,
 
 Runtime asset URLs are centralized in `SceneRuntime`. Required Blender nodes fail with an explicit asset-path error. Collision meshes matching `UBX_` or `UCX_` are hidden by default and can be inspected from `Level > Show collision`.
 
-Player texture masters remain in ignored `assets-source/textures/`. The converter creates mipmapped KTX2/ETC1S files under `assets/runtime-textures/`. Runtime requires only the 1K tier for its first frame, upgrades one texture set at a time to 4K, and releases the replaced GPU textures after each complete set is applied. The player 8K tier is gated behind 12 seconds of stable 55+ FPS, 8K GPU texture support, at least 8 GB reported device memory when that API is available, and disabled browser data-saving mode. The 2K asteroid masters stop at 2K rather than being upscaled.
+Texture masters remain in ignored `assets-source/textures/`. The converter creates mipmapped KTX2 files under `assets/runtime-textures/`, converting TIFF masters through temporary PNGs when needed. Runtime requires only compact ETC1S 1K for its first frame and upgrades one set at a time to ETC1S 4K. Cinematic high tiers bypass lossy texture compression and load copies of the original PNG masters: native 8K for the player and native 4K for the speaker. Replaced GPU textures are released after each complete set is applied. Automatic high-tier loading is gated behind 12 seconds of stable 55+ FPS, 8K GPU texture support, at least 8 GB reported device memory when available, and disabled browser data-saving mode. `Level > Cinematic textures` bypasses the adaptive gates while retaining the GPU 8192 texture-size requirement.
+
+`SpeakerPrefabRuntime` binds one shared `M_Speaker1` material to both speaker instances. Its BaseColor, Normal and packed Occlusion/Roughness/Metallic maps stream from 1K to 4K and receive the same studio reflection environment as the other PBR prefabs.
+
+Speaker playback uses independent left/right two-way crossovers at 2.2 kHz. `SP_SpeakerLow1` and `SP_SpeakerHigh1` are spatial emitters for the filtered bands, while their analyser levels drive the authored low and high membrane meshes. The player creates an editable point light at `PL_LightDisk1`; it is visible only while the receiver is on and a disc is inserted.
 
 Metallic materials are lit by a PMREM-filtered procedural studio environment from `StudioEnvironmentRuntime`. It affects reflections only and does not replace the visible scene background. Tune its strength and Y rotation from `Level > Environment` and `Level > Env rotation Y`.
 

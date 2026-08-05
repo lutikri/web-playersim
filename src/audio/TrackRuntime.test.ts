@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSupportedTrackFile, receiverVolumeToGain } from './TrackRuntime';
+import { isSupportedTrackFile, receiverVolumeToGain, timeDomainRms } from './TrackRuntime';
 
 describe('track file selection', () => {
   it('accepts the requested audio extensions case-insensitively', () => {
@@ -14,5 +14,10 @@ describe('track file selection', () => {
     expect(receiverVolumeToGain(12)).toBeGreaterThan(0.25);
     expect(receiverVolumeToGain(30)).toBe(1);
     expect(receiverVolumeToGain(99)).toBe(2);
+  });
+
+  it('measures normalized waveform energy for speaker animation', () => {
+    expect(timeDomainRms(new Uint8Array([128, 128, 128]))).toBe(0);
+    expect(timeDomainRms(new Uint8Array([0, 255]))).toBeCloseTo(0.996, 2);
   });
 });

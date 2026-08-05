@@ -4,9 +4,11 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Store } from '../app/Store';
 import { DiscPrefabRuntime } from '../receiver/DiscPrefabRuntime';
 import { PlayerPrefabRuntime } from '../receiver/PlayerPrefabRuntime';
+import { SpeakerPrefabRuntime, type SpeakerBandLevels } from '../receiver/SpeakerPrefabRuntime';
 import type { StudioEnvironmentRuntime } from './StudioEnvironmentRuntime';
 import { SceneMaterialRuntime } from './SceneMaterialRuntime';
 import type { TextureStreamingRuntime } from './TextureStreamingRuntime';
+import type { CameraPose } from './CameraRuntime';
 
 const ASSETS = {
   level: new URL('../../assets/enviroment/Scene0.glb', import.meta.url).href,
@@ -21,7 +23,8 @@ export interface SceneBindings {
   sampleDisc: THREE.Object3D;
   player: THREE.Object3D;
   speakers: readonly [THREE.Object3D, THREE.Object3D];
-  speakerEmitters: readonly [THREE.Object3D, THREE.Object3D];
+  speakerLowEmitters: readonly [THREE.Object3D, THREE.Object3D];
+  speakerHighEmitters: readonly [THREE.Object3D, THREE.Object3D];
   discSocket: THREE.Object3D;
   powerButton: THREE.Object3D;
   volumeUpButton: THREE.Object3D;
@@ -40,6 +43,12 @@ export interface SpawnedDiscBinding {
   id: number;
   root: THREE.Object3D;
   collider: THREE.Object3D;
+}
+
+interface AuthoredTransform {
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  scale: THREE.Vector3;
 }
 
 function requireObject(root: THREE.Object3D, name: string, assetPath: string): THREE.Object3D {
@@ -106,6 +115,7 @@ export class SceneRuntime {
   private readonly dracoLoader = new DRACOLoader();
   private playerRuntime: PlayerPrefabRuntime | null = null;
   private sampleDiscRuntime: DiscPrefabRuntime | null = null;
+  private speakerRuntime: SpeakerPrefabRuntime | null = null;
   private readonly discRuntimes = new Map<number, DiscPrefabRuntime>();
   private readonly discRoots = new Map<number, THREE.Object3D>();
   private discTemplate: THREE.Object3D | null = null;
@@ -114,6 +124,9 @@ export class SceneRuntime {
   private readonly discSpawnScale = new THREE.Vector3(1, 1, 1);
   private sceneMaterialRuntime: SceneMaterialRuntime | null = null;
   private bindingsValue: SceneBindings | null = null;
+  private readonly authoredTransforms = new Map<THREE.Object3D, AuthoredTransform>();
+  private readonly cameraPosesValue: CameraPose[] = [];
+  private readonly cameraHintsValue: THREE.Object3D[] = [];
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -130,12 +143,28 @@ export class SceneRuntime {
     return this.bindingsValue;
   }
 
-  async load(): Promise<SceneBindings> {
+  get cameraPoses(): readonly CameraPose[] {
+    return this.cameraPosesValue;
+  }
+
+  get cameraHints(): readonly THREE.Object3D[] {
+    return this.cameraHintsValue;
+  }
+
+  async load(onProgress: (progress: number) => void = () => undefined): Promise<SceneBindings> {
+    onProgress(0.04);
+    let loadedAssets = 0;
+    const loadAsset = async (url: string) => {
+      const gltf = await this.loader.loadAsync(url);
+      loadedAssets += 1;
+      onProgress(0.08 + loadedAssets * 0.11);
+      return gltf;
+    };
     const [levelGltf, cdGltf, playerGltf, speakerGltf] = await Promise.all([
-      this.loader.loadAsync(ASSETS.level),
-      this.loader.loadAsync(ASSETS.cd),
-      this.loader.loadAsync(ASSETS.player),
-      this.loader.loadAsync(ASSETS.speaker),
+      loadAsset(ASSETS.level),
+      loadAsset(ASSETS.cd),
+      loadAsset(ASSETS.player),
+      loadAsset(ASSETS.speaker),
     ]);
     const level = levelGltf.scene;
     const sampleCd = cdGltf.scene;
@@ -149,6 +178,12 @@ export class SceneRuntime {
     player.name = 'Player';
     speakerLeft.name = 'Speaker Left';
     speakerRight.name = 'Speaker Right';
+    level.traverse((object) => {
+      if (object instanceof THREE.PerspectiveCamera && object.name.startsWith('CAM_')) {
+        this.cameraPosesValue.push({ name: object.name, camera: object });
+      }
+      if (object.name.startsWith('CAMHINT_')) this.cameraHintsValue.push(object);
+    });
     const discMarker = requireObject(level, 'PF_CD1', ASSETS.level);
     setFromMarker(sampleCd, discMarker);
     discMarker.updateWorldMatrix(true, false);
@@ -156,7 +191,7 @@ export class SceneRuntime {
     setFromMarker(player, requireObject(level, 'PF_Player1', ASSETS.level));
     setFromMarker(speakerLeft, requireObject(level, 'PF_Speaker1_Speaker1', ASSETS.level));
     setFromMarker(speakerRight, requireObject(level, 'PF_Speaker1_Speaker2', ASSETS.level));
-    [sampleCd, speakerLeft, speakerRight].forEach((object) => { object.userData.markerDriven = true; });
+    [sampleCd, player, speakerLeft, speakerRight].forEach((object) => { object.userData.markerDriven = true; });
     ['PF_CD1', 'PF_Player1', 'PF_Speaker1_Speaker1', 'PF_Speaker1_Speaker2'].forEach((name) => {
       requireObject(level, name, ASSETS.level).removeFromParent();
     });
@@ -175,11 +210,19 @@ export class SceneRuntime {
       [level, sampleCd, player, speakerLeft, speakerRight],
       this.textureStreaming,
     );
+    onProgress(0.68);
+    this.speakerRuntime = await SpeakerPrefabRuntime.create(
+      [speakerLeft, speakerRight],
+      this.studioEnvironment,
+      this.textureStreaming,
+    );
+    onProgress(0.78);
     this.sampleDiscRuntime = await DiscPrefabRuntime.create(
       sampleCd,
       this.studioEnvironment,
       this.textureStreaming,
     );
+    onProgress(0.86);
     this.scene.add(level, sampleCd, player, speakerLeft, speakerRight);
 
     this.playerRuntime = await PlayerPrefabRuntime.create(
@@ -189,15 +232,20 @@ export class SceneRuntime {
       this.studioEnvironment,
       this.textureStreaming,
     );
+    onProgress(0.96);
     const playerBindings = this.playerRuntime.bindings;
 
     this.bindingsValue = {
       sampleDisc: sampleCd,
       player,
       speakers: [speakerLeft, speakerRight],
-      speakerEmitters: [
+      speakerLowEmitters: [
         requireObject(speakerLeft, 'SP_SpeakerLow1', ASSETS.speaker),
         requireObject(speakerRight, 'SP_SpeakerLow1', ASSETS.speaker),
+      ],
+      speakerHighEmitters: [
+        requireObject(speakerLeft, 'SP_SpeakerHigh1', ASSETS.speaker),
+        requireObject(speakerRight, 'SP_SpeakerHigh1', ASSETS.speaker),
       ],
       discSocket: playerBindings.discSocket,
       powerButton: playerBindings.powerButton,
@@ -210,9 +258,30 @@ export class SceneRuntime {
       stopButton: playerBindings.stopButton,
       lidInteraction: playerBindings.lidInteraction,
       colliders,
-      editableObjects: [level, player, speakerLeft, speakerRight],
+      editableObjects: [level, player, speakerLeft, speakerRight, playerBindings.discLight],
     };
+    this.bindingsValue.editableObjects.forEach((object) => {
+      if (object instanceof THREE.Light) return;
+      this.authoredTransforms.set(object, {
+        position: object.position.clone(),
+        quaternion: object.quaternion.clone(),
+        scale: object.scale.clone(),
+      });
+    });
+    onProgress(1);
     return this.bindingsValue;
+  }
+
+  resetEditableObjectTransforms(): THREE.Object3D[] {
+    const reset: THREE.Object3D[] = [];
+    this.authoredTransforms.forEach((transform, object) => {
+      object.position.copy(transform.position);
+      object.quaternion.copy(transform.quaternion);
+      object.scale.copy(transform.scale);
+      object.updateMatrixWorld(true);
+      reset.push(object);
+    });
+    return reset;
   }
 
   pulseButton(button: THREE.Object3D): void {
@@ -250,6 +319,11 @@ export class SceneRuntime {
     const insertedDisc = this.store.getState().insertedDiscId;
     this.playerRuntime?.setDisc(insertedDisc === null ? null : this.discRoots.get(insertedDisc) ?? null);
     this.playerRuntime?.update(deltaSeconds);
+    this.speakerRuntime?.update(deltaSeconds);
+  }
+
+  setSpeakerLevels(levels: readonly [SpeakerBandLevels, SpeakerBandLevels]): void {
+    this.speakerRuntime?.setLevels(levels);
   }
 
   setCollidersVisible(visible: boolean): void {
@@ -270,6 +344,7 @@ export class SceneRuntime {
     this.discRuntimes.clear();
     this.discRoots.clear();
     this.sampleDiscRuntime?.dispose();
+    this.speakerRuntime?.dispose();
     this.sceneMaterialRuntime?.dispose();
     this.dracoLoader.dispose();
   }

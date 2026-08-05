@@ -5,6 +5,17 @@ import type { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import type { SceneBindings, SceneRuntime } from '../scene/SceneRuntime';
 
 const SUPPORTED_EXTENSIONS = new Set(['flac', 'mp3', 'wav']);
+const SPEAKER_CROSSOVER_HZ = 2200;
+
+interface SpeakerPlaybackNodes {
+  lowPanner: PannerNode;
+  highPanner: PannerNode;
+  lowAnalyser: AnalyserNode;
+  highAnalyser: AnalyserNode;
+  lowSamples: Uint8Array<ArrayBuffer>;
+  highSamples: Uint8Array<ArrayBuffer>;
+  nodes: AudioNode[];
+}
 
 export function isSupportedTrackFile(file: Pick<File, 'name'>): boolean {
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -14,6 +25,16 @@ export function isSupportedTrackFile(file: Pick<File, 'name'>): boolean {
 export function receiverVolumeToGain(volume: number): number {
   if (volume <= 0) return 0;
   return Math.min(2, (Math.min(99, volume) / 30) ** 1.35);
+}
+
+export function timeDomainRms(samples: Uint8Array): number {
+  if (samples.length === 0) return 0;
+  let sumSquares = 0;
+  samples.forEach((sample) => {
+    const normalized = (sample - 128) / 128;
+    sumSquares += normalized * normalized;
+  });
+  return Math.sqrt(sumSquares / samples.length);
 }
 
 function setAudioParam(param: AudioParam, value: number, time: number): void {
@@ -36,8 +57,9 @@ export class TrackRuntime {
   private operationGeneration = 0;
   private progressElapsed = 0;
   private readonly unsubscribe: () => void;
-  private readonly leftPosition = new THREE.Vector3();
-  private readonly rightPosition = new THREE.Vector3();
+  private readonly lowPositions = [new THREE.Vector3(), new THREE.Vector3()] as const;
+  private readonly highPositions = [new THREE.Vector3(), new THREE.Vector3()] as const;
+  private speakerPlayback: readonly [SpeakerPlaybackNodes, SpeakerPlaybackNodes] | null = null;
   private readonly listenerPosition = new THREE.Vector3();
   private readonly listenerForward = new THREE.Vector3();
   private readonly listenerUp = new THREE.Vector3();
@@ -112,8 +134,12 @@ export class TrackRuntime {
     const context = this.context;
     if (!context) return;
     const now = context.currentTime;
-    this.bindings.speakerEmitters[0].getWorldPosition(this.leftPosition);
-    this.bindings.speakerEmitters[1].getWorldPosition(this.rightPosition);
+    this.bindings.speakerLowEmitters.forEach((emitter, index) => {
+      emitter.getWorldPosition(this.lowPositions[index]);
+    });
+    this.bindings.speakerHighEmitters.forEach((emitter, index) => {
+      emitter.getWorldPosition(this.highPositions[index]);
+    });
     this.camera.getWorldPosition(this.listenerPosition);
     this.camera.getWorldDirection(this.listenerForward);
     this.listenerUp.copy(this.camera.up).applyQuaternion(this.camera.getWorldQuaternion(new THREE.Quaternion())).normalize();
@@ -127,6 +153,7 @@ export class TrackRuntime {
     setAudioParam(listener.upX, this.listenerUp.x, now);
     setAudioParam(listener.upY, this.listenerUp.y, now);
     setAudioParam(listener.upZ, this.listenerUp.z, now);
+    this.updateSpeakerPlayback(now);
     if (this.store.getState().playback === 'playing') {
       this.progressElapsed += deltaSeconds;
       if (this.progressElapsed >= 0.25) {
@@ -237,15 +264,18 @@ export class TrackRuntime {
     if (this.store.getState().playback !== 'playing') return;
     const source = context.createBufferSource();
     const splitter = context.createChannelSplitter(2);
-    const left = this.createPanner(context, this.leftPosition);
-    const right = this.createPanner(context, this.rightPosition);
     source.buffer = buffer;
     source.connect(splitter);
-    splitter.connect(left, 0);
-    splitter.connect(right, buffer.numberOfChannels > 1 ? 1 : 0);
     if (!this.masterGain) return;
-    left.connect(this.masterGain);
-    right.connect(this.masterGain);
+    const speakerPlayback: [SpeakerPlaybackNodes, SpeakerPlaybackNodes] = [
+      this.createSpeakerPlaybackNodes(context, splitter, 0, 0),
+      this.createSpeakerPlaybackNodes(context, splitter, buffer.numberOfChannels > 1 ? 1 : 0, 1),
+    ];
+    speakerPlayback.forEach(({ lowPanner, highPanner }) => {
+      lowPanner.connect(this.masterGain!);
+      highPanner.connect(this.masterGain!);
+    });
+    this.speakerPlayback = speakerPlayback;
     this.source = source;
     this.playbackStartedAt = context.currentTime;
     source.onended = () => {
@@ -270,6 +300,72 @@ export class TrackRuntime {
     return panner;
   }
 
+  private createSpeakerPlaybackNodes(
+    context: AudioContext,
+    splitter: ChannelSplitterNode,
+    channel: number,
+    speakerIndex: 0 | 1,
+  ): SpeakerPlaybackNodes {
+    const lowFilter = context.createBiquadFilter();
+    lowFilter.type = 'lowpass';
+    lowFilter.frequency.value = SPEAKER_CROSSOVER_HZ;
+    lowFilter.Q.value = Math.SQRT1_2;
+    const highFilter = context.createBiquadFilter();
+    highFilter.type = 'highpass';
+    highFilter.frequency.value = SPEAKER_CROSSOVER_HZ;
+    highFilter.Q.value = Math.SQRT1_2;
+    const lowAnalyser = context.createAnalyser();
+    const highAnalyser = context.createAnalyser();
+    [lowAnalyser, highAnalyser].forEach((analyser) => {
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.62;
+    });
+    const lowPanner = this.createPanner(context, this.lowPositions[speakerIndex]);
+    const highPanner = this.createPanner(context, this.highPositions[speakerIndex]);
+    splitter.connect(lowFilter, channel);
+    splitter.connect(highFilter, channel);
+    lowFilter.connect(lowAnalyser);
+    highFilter.connect(highAnalyser);
+    lowAnalyser.connect(lowPanner);
+    highAnalyser.connect(highPanner);
+    return {
+      lowPanner,
+      highPanner,
+      lowAnalyser,
+      highAnalyser,
+      lowSamples: new Uint8Array(lowAnalyser.fftSize),
+      highSamples: new Uint8Array(highAnalyser.fftSize),
+      nodes: [lowFilter, highFilter, lowAnalyser, highAnalyser, lowPanner, highPanner],
+    };
+  }
+
+  private updateSpeakerPlayback(now: number): void {
+    const playback = this.speakerPlayback;
+    if (!playback) {
+      this.sceneRuntime.setSpeakerLevels([{ low: 0, high: 0 }, { low: 0, high: 0 }]);
+      return;
+    }
+    const volumeGain = receiverVolumeToGain(this.store.getState().volume);
+    const readLevels = (speaker: SpeakerPlaybackNodes, index: 0 | 1) => {
+      this.setPannerPosition(speaker.lowPanner, this.lowPositions[index], now);
+      this.setPannerPosition(speaker.highPanner, this.highPositions[index], now);
+      speaker.lowAnalyser.getByteTimeDomainData(speaker.lowSamples);
+      speaker.highAnalyser.getByteTimeDomainData(speaker.highSamples);
+      return {
+        low: THREE.MathUtils.clamp(timeDomainRms(speaker.lowSamples) * 5 * volumeGain, 0, 1),
+        high: THREE.MathUtils.clamp(timeDomainRms(speaker.highSamples) * 7 * volumeGain, 0, 1),
+      };
+    };
+    const levels = [readLevels(playback[0], 0), readLevels(playback[1], 1)] as const;
+    this.sceneRuntime.setSpeakerLevels(levels);
+  }
+
+  private setPannerPosition(panner: PannerNode, position: THREE.Vector3, now: number): void {
+    setAudioParam(panner.positionX, position.x, now);
+    setAudioParam(panner.positionY, position.y, now);
+    setAudioParam(panner.positionZ, position.z, now);
+  }
+
   private stopSource(resetOffset: boolean): void {
     const source = this.source;
     if (source && this.context) {
@@ -283,6 +379,9 @@ export class TrackRuntime {
       source.stop();
       source.disconnect();
     }
+    this.speakerPlayback?.forEach((speaker) => speaker.nodes.forEach((node) => node.disconnect()));
+    this.speakerPlayback = null;
+    this.sceneRuntime.setSpeakerLevels([{ low: 0, high: 0 }, { low: 0, high: 0 }]);
     if (resetOffset) this.playbackOffset = 0;
   }
 

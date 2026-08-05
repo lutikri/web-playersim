@@ -36,11 +36,12 @@ button {
   display: grid;
   place-items: center;
   padding: 32px;
-  background: #171a18;
-  color: #cdd4ce;
+  z-index: 1000;
+  background: #242826;
+  color: #d9ded9;
   font-size: 11px;
   letter-spacing: 0;
-  transition: opacity 220ms ease, visibility 220ms ease;
+  transition: opacity 600ms ease, visibility 600ms ease;
 }
 
 #loading.is-hidden {
@@ -50,6 +51,98 @@ button {
 
 #loading.is-error {
   color: #ff7b72;
+}
+
+.loading-content {
+  width: min(220px, 62vw);
+  display: grid;
+  gap: 12px;
+}
+
+#loading-label {
+  font: 500 10px/1 "Segoe UI", sans-serif;
+  text-align: center;
+}
+
+.loading-track {
+  width: 100%;
+  height: 1px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 14%);
+}
+
+#loading-progress {
+  width: 0;
+  height: 100%;
+  background: #eef2ed;
+  transition: width 240ms ease;
+}
+
+#camera-navigation,
+#camera-hotspots {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+#camera-navigation.is-unavailable,
+#camera-navigation.is-debug {
+  display: none;
+}
+
+.camera-hotspot {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: 50%;
+  background: rgb(16 18 17 / 24%);
+  box-shadow: 0 0 0 5px rgb(255 255 255 / 8%);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 160ms ease, box-shadow 160ms ease, opacity 220ms ease;
+}
+
+.camera-hotspot::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 88%);
+}
+
+.camera-hotspot:hover {
+  background: rgb(255 255 255 / 16%);
+  box-shadow: 0 0 0 7px rgb(255 255 255 / 12%);
+}
+
+#camera-back {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  min-width: 64px;
+  height: 28px;
+  padding: 0 12px;
+  transform: translate(-50%, -8px);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 4px;
+  background: rgb(12 14 13 / 72%);
+  color: rgb(244 246 242 / 86%);
+  font-size: 9px;
+  opacity: 0;
+  visibility: hidden;
+  cursor: pointer;
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+}
+
+#camera-back.is-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 #status {
@@ -147,9 +240,16 @@ button {
 
 @media (max-width: 600px) {
   #status {
-    right: 10px;
-    bottom: 10px;
-    font-size: 9px;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    max-width: none;
+    text-align: center;
+    font-size: 8px;
+  }
+
+  #load-track {
+    bottom: 34px;
   }
 
   .lil-gui.root.debug-level-panel,

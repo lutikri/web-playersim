@@ -3,6 +3,7 @@ import type { SerializableMaterial, SerializedMaterialValue } from '../debug/mat
 import { collectSceneMaterials } from '../debug/materialEditor';
 import type { PostProcessingOverrides } from '../postprocessing/PostProcessingRuntime';
 import type { StudioEnvironmentRuntime } from '../scene/StudioEnvironmentRuntime';
+import type { TextureStreamingRuntime } from '../scene/TextureStreamingRuntime';
 
 export interface ConfiguredObject {
   name: string;
@@ -11,6 +12,7 @@ export interface ConfiguredObject {
   rotation: number[];
   scale: number[];
   visible: boolean;
+  transformOverride?: boolean;
   properties?: Record<string, boolean | number | number[] | string | null>;
 }
 
@@ -19,6 +21,7 @@ export interface LevelConfig {
     exposure?: number;
     environmentIntensity?: number;
     environmentRotationY?: number;
+    cinematicTextures?: boolean;
   };
   objects?: ConfiguredObject[];
   materials?: SerializableMaterial[];
@@ -29,6 +32,7 @@ interface LevelConfigTargets {
   scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   studioEnvironment: StudioEnvironmentRuntime;
+  textureStreaming?: TextureStreamingRuntime;
 }
 
 type EditableLight = THREE.AmbientLight | THREE.DirectionalLight | THREE.HemisphereLight | THREE.PointLight | THREE.SpotLight;
@@ -45,7 +49,6 @@ function applyTransform(object: THREE.Object3D, config: ConfiguredObject): void 
   if (config.position.length >= 3) object.position.fromArray(config.position);
   if (config.rotation.length >= 3) object.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
   if (config.scale.length >= 3) object.scale.fromArray(config.scale);
-  object.visible = config.visible;
 }
 
 function applyLightProperties(light: EditableLight, properties: ConfiguredObject['properties']): void {
@@ -118,13 +121,16 @@ function applyMaterials(scene: THREE.Scene, configs: SerializableMaterial[]): vo
 }
 
 export function applyLevelConfig(config: LevelConfig, targets: LevelConfigTargets): void {
-  const { scene, renderer, studioEnvironment } = targets;
+  const { scene, renderer, studioEnvironment, textureStreaming } = targets;
   if (typeof config.level?.exposure === 'number') renderer.toneMappingExposure = config.level.exposure;
   if (typeof config.level?.environmentIntensity === 'number') {
     studioEnvironment.intensity = config.level.environmentIntensity;
   }
   if (typeof config.level?.environmentRotationY === 'number') {
     studioEnvironment.rotationDegrees = config.level.environmentRotationY;
+  }
+  if (textureStreaming && typeof config.level?.cinematicTextures === 'boolean') {
+    textureStreaming.cinematicMode = config.level.cinematicTextures;
   }
 
   config.objects?.forEach((objectConfig) => {
@@ -137,8 +143,9 @@ export function applyLevelConfig(config: LevelConfig, targets: LevelConfigTarget
       if (createdLight instanceof THREE.SpotLight) scene.add(createdLight.target);
       object = createdLight;
     }
-    if (object.userData.markerDriven === true) return;
-    applyTransform(object, objectConfig);
+    const legacyMarkerTransform = object.userData.markerDriven === true && objectConfig.transformOverride === undefined;
+    if (objectConfig.transformOverride !== false && !legacyMarkerTransform) applyTransform(object, objectConfig);
+    object.visible = objectConfig.visible;
     if (isEditableLight(object)) applyLightProperties(object, objectConfig.properties);
   });
   if (config.materials) applyMaterials(scene, config.materials);

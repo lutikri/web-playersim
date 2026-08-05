@@ -1,21 +1,25 @@
 import * as THREE from 'three';
 import type { TextureMaps, TextureStreamingRuntime, TextureStreamHandle } from './TextureStreamingRuntime';
 
-const ASTEROID_BLACK_TEXTURES = {
+const PODIUM_TEXTURES = {
   low: {
-    baseColor: new URL('../../assets/runtime-textures/T_AsteroidBlack_BaseColor_1K.ktx2', import.meta.url).href,
-    normal: new URL('../../assets/runtime-textures/T_AsteroidBlack_Normal_1K.ktx2', import.meta.url).href,
-    roughness: new URL('../../assets/runtime-textures/T_AsteroidBlack_Roughness_1K.ktx2', import.meta.url).href,
+    baseColor: new URL('../../assets/runtime-textures/T_PodiumMat1_BaseColor_1K.ktx2', import.meta.url).href,
+    normal: new URL('../../assets/runtime-textures/T_PodiumMat1_Normal_1K.ktx2', import.meta.url).href,
+    roughness: new URL('../../assets/runtime-textures/T_PodiumMat1_Roughness_1K.ktx2', import.meta.url).href,
   },
   medium: {
-    baseColor: new URL('../../assets/runtime-textures/T_AsteroidBlack_BaseColor_2K.ktx2', import.meta.url).href,
-    normal: new URL('../../assets/runtime-textures/T_AsteroidBlack_Normal_2K.ktx2', import.meta.url).href,
-    roughness: new URL('../../assets/runtime-textures/T_AsteroidBlack_Roughness_2K.ktx2', import.meta.url).href,
+    baseColor: new URL('../../assets/runtime-textures/T_PodiumMat1_BaseColor_4K.ktx2', import.meta.url).href,
+    normal: new URL('../../assets/runtime-textures/T_PodiumMat1_Normal_4K.ktx2', import.meta.url).href,
+    roughness: new URL('../../assets/runtime-textures/T_PodiumMat1_Roughness_4K.ktx2', import.meta.url).href,
   },
 } as const;
 
-const ASTEROID_BLACK_MATERIAL = 'M_AsteroidBlack';
-const ASTEROID_BLACK_TILING = 4;
+const PODIUM_MATERIAL = 'M_PodiumMat1';
+const PODIUM_TILING = 1;
+
+function matchesMaterialName(material: THREE.Material, expectedName: string): boolean {
+  return material.name.trim() === expectedName;
+}
 
 function assignedMaterials(mesh: THREE.Mesh): THREE.Material[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -26,7 +30,7 @@ export function hasMaterialNamed(roots: THREE.Object3D[], materialName: string):
     let found = false;
     root.traverse((object) => {
       if (found || !(object instanceof THREE.Mesh)) return;
-      found = assignedMaterials(object).some((material) => material.name === materialName);
+      found = assignedMaterials(object).some((material) => matchesMaterialName(material, materialName));
     });
     return found;
   });
@@ -43,11 +47,11 @@ export function replaceMaterialNamed(
       if (!(object instanceof THREE.Mesh)) return;
       if (Array.isArray(object.material)) {
         object.material = object.material.map((material) => {
-          if (material.name !== materialName) return material;
+          if (!matchesMaterialName(material, materialName)) return material;
           replacedMaterials.add(material);
           return replacement;
         });
-      } else if (object.material.name === materialName) {
+      } else if (matchesMaterialName(object.material, materialName)) {
         replacedMaterials.add(object.material);
         object.material = replacement;
       }
@@ -61,13 +65,13 @@ export function prepareTiledTexture(texture: THREE.Texture, colorSpace: THREE.Co
   texture.colorSpace = colorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(ASTEROID_BLACK_TILING, ASTEROID_BLACK_TILING);
+  texture.repeat.set(PODIUM_TILING, PODIUM_TILING);
   texture.anisotropy = 8;
   texture.needsUpdate = true;
   return texture;
 }
 
-function applyAsteroidMaps(material: THREE.MeshStandardMaterial, maps: TextureMaps): void {
+function applyPodiumMaps(material: THREE.MeshStandardMaterial, maps: TextureMaps): void {
   material.map = maps.baseColor ?? null;
   material.normalMap = maps.normal ?? null;
   material.roughnessMap = maps.roughness ?? null;
@@ -84,24 +88,24 @@ export class SceneMaterialRuntime {
     roots: THREE.Object3D[],
     textureStreaming: TextureStreamingRuntime,
   ): Promise<SceneMaterialRuntime> {
-    if (!hasMaterialNamed(roots, ASTEROID_BLACK_MATERIAL)) {
+    if (!hasMaterialNamed(roots, PODIUM_MATERIAL)) {
       return new SceneMaterialRuntime(null, null);
     }
 
     const material = new THREE.MeshStandardMaterial({
-      name: ASTEROID_BLACK_MATERIAL,
+      name: PODIUM_MATERIAL,
       roughness: 1,
       metalness: 0,
     });
     const textureStream = await textureStreaming.stream(
-      ASTEROID_BLACK_TEXTURES,
-      { label: 'Asteroid black', priority: 5, repeat: ASTEROID_BLACK_TILING },
+      PODIUM_TEXTURES,
+      { label: 'Podium material', priority: 5, repeat: PODIUM_TILING },
       (maps, tier) => {
-        applyAsteroidMaps(material, maps);
+        applyPodiumMaps(material, maps);
         material.userData.textureTier = tier;
       },
     );
-    const replacedMaterials = replaceMaterialNamed(roots, ASTEROID_BLACK_MATERIAL, material);
+    const replacedMaterials = replaceMaterialNamed(roots, PODIUM_MATERIAL, material);
     replacedMaterials.forEach((replaced) => replaced.dispose());
     return new SceneMaterialRuntime(material, textureStream);
   }

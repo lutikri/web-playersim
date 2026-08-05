@@ -9,7 +9,16 @@
   <body>
     <div id="app">
       <canvas id="scene" aria-label="Interactive Technics CD receiver"></canvas>
-      <div id="loading" role="status">LOADING SCENE</div>
+      <div id="loading" role="status">
+        <div class="loading-content">
+          <span id="loading-label">LOADING SCENE</span>
+          <div class="loading-track" aria-hidden="true"><div id="loading-progress"></div></div>
+        </div>
+      </div>
+      <div id="camera-navigation" aria-label="Camera navigation">
+        <div id="camera-hotspots"></div>
+        <button id="camera-back" type="button" aria-label="Back to overview">BACK</button>
+      </div>
       <div id="reticle" aria-hidden="true"></div>
       <div id="status" aria-live="polite"></div>
       <button id="load-track" type="button" disabled>LOAD TRACK</button>

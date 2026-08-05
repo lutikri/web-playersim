@@ -4,6 +4,8 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import type { SceneRuntime } from '../scene/SceneRuntime';
 import type { StudioEnvironmentRuntime } from '../scene/StudioEnvironmentRuntime';
 import type { PostProcessingRuntime } from '../postprocessing/PostProcessingRuntime';
+import type { TextureStreamingRuntime } from '../scene/TextureStreamingRuntime';
+import type { LevelConfig } from '../config/LevelConfigRuntime';
 import { collectSceneMaterials, serializeMaterial } from './materialEditor';
 
 type EditableLight = THREE.AmbientLight | THREE.DirectionalLight | THREE.HemisphereLight | THREE.PointLight | THREE.SpotLight;
@@ -17,6 +19,7 @@ interface SerializableObject {
   rotation: number[];
   scale: number[];
   visible: boolean;
+  transformOverride?: boolean;
   properties?: Record<string, boolean | number | number[] | string>;
 }
 
@@ -48,7 +51,7 @@ function lightProperties(light: EditableLight): Record<string, boolean | number 
 export class DebugPanel {
   private readonly gui = new GUI({ title: 'LEVEL EDITOR', width: 310 });
   private readonly propertiesGui = new GUI({ title: 'PROPERTIES', width: 310 });
-  private readonly objectsFolder = this.gui.addFolder('Objects');
+  private readonly objectsFolder = this.gui.addFolder('Prefabs / Objects');
   private readonly lightsFolder = this.gui.addFolder('Lights');
   private readonly materialsFolder = this.gui.addFolder('Materials');
   private readonly transform: TransformControls;
@@ -62,6 +65,7 @@ export class DebugPanel {
   private objectIndex = 0;
   private panelVisible = false;
   private showLightHelpers = true;
+  private readonly transformOverrides = new Map<THREE.Object3D, boolean>();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -71,9 +75,15 @@ export class DebugPanel {
     private readonly sceneRuntime: SceneRuntime,
     private readonly studioEnvironment: StudioEnvironmentRuntime,
     private readonly postProcessing: PostProcessingRuntime,
+    private readonly textureStreaming: TextureStreamingRuntime,
+    levelConfig: LevelConfig,
   ) {
     this.editableObjects = [...sceneRuntime.bindings.editableObjects];
     this.materials = collectSceneMaterials(scene);
+    this.editableObjects.forEach((object) => {
+      const saved = levelConfig.objects?.find((entry) => entry.name === object.name)?.transformOverride;
+      this.transformOverrides.set(object, saved ?? object.userData.markerDriven !== true);
+    });
     this.gui.domElement.classList.add('debug-level-panel');
     this.propertiesGui.domElement.classList.add('debug-properties-panel');
     this.transform = new TransformControls(camera, canvas);
@@ -90,11 +100,12 @@ export class DebugPanel {
     this.updateHelperVisibility();
   }
 
-  toggle(): void {
+  toggle(): boolean {
     this.panelVisible = !this.panelVisible;
     this.gui.show(this.panelVisible);
     this.propertiesGui.show(this.panelVisible);
     this.updateHelperVisibility();
+    return this.panelVisible;
   }
 
   dispose(): void {
@@ -119,6 +130,7 @@ export class DebugPanel {
     level.add(this.renderer, 'toneMappingExposure', 0.1, 3, 0.05).name('Exposure');
     level.add(this.studioEnvironment, 'intensity', 0, 3, 0.01).name('Environment');
     level.add(this.studioEnvironment, 'rotationDegrees', -180, 180, 1).name('Env rotation Y');
+    level.add(this.textureStreaming, 'cinematicMode').name('Cinematic textures');
     const levelState = { showCollision: false, showLightHelpers: this.showLightHelpers };
     level.add(levelState, 'showCollision').name('Show collision').onChange((visible: boolean) => {
       this.sceneRuntime.setCollidersVisible(visible);
@@ -129,6 +141,7 @@ export class DebugPanel {
     });
     this.addPerformanceControls(level);
     this.addPostProcessingControls(level);
+    level.add({ resetOffsets: () => this.resetObjectOffsets() }, 'resetOffsets').name('Reset object offsets');
     level.add({ save: () => void this.saveConfig() }, 'save').name('Save to project');
     level.close();
   }
@@ -361,15 +374,16 @@ export class DebugPanel {
   }
 
   private addTransformProperties(object: THREE.Object3D): void {
+    const markOverridden = () => this.transformOverrides.set(object, true);
     const tools = this.propertiesGui.addFolder('Transform tool');
     tools.add({ translate: () => this.transform.setMode('translate') }, 'translate').name('Translate');
     tools.add({ rotate: () => this.transform.setMode('rotate') }, 'rotate').name('Rotate');
     tools.add({ scale: () => this.transform.setMode('scale') }, 'scale').name('Scale');
 
     const position = this.propertiesGui.addFolder('Position');
-    position.add(object.position, 'x', -10, 10, 0.001).listen();
-    position.add(object.position, 'y', -10, 10, 0.001).listen();
-    position.add(object.position, 'z', -10, 10, 0.001).listen();
+    position.add(object.position, 'x', -10, 10, 0.001).listen().onChange(markOverridden);
+    position.add(object.position, 'y', -10, 10, 0.001).listen().onChange(markOverridden);
+    position.add(object.position, 'z', -10, 10, 0.001).listen().onChange(markOverridden);
 
     this.selectedRotationProxy = {
       x: THREE.MathUtils.radToDeg(object.rotation.x),
@@ -380,15 +394,16 @@ export class DebugPanel {
     (['x', 'y', 'z'] as const).forEach((axis) => {
       rotation.add(this.selectedRotationProxy!, axis, -180, 180, 0.1).onChange((degrees: number) => {
         object.rotation[axis] = THREE.MathUtils.degToRad(degrees);
+        markOverridden();
         this.updateSelectedLightDirection();
         this.updateSelectedHelper();
       });
     });
 
     const scale = this.propertiesGui.addFolder('Scale');
-    scale.add(object.scale, 'x', 0.01, 10, 0.001).listen();
-    scale.add(object.scale, 'y', 0.01, 10, 0.001).listen();
-    scale.add(object.scale, 'z', 0.01, 10, 0.001).listen();
+    scale.add(object.scale, 'x', 0.01, 10, 0.001).listen().onChange(markOverridden);
+    scale.add(object.scale, 'y', 0.01, 10, 0.001).listen().onChange(markOverridden);
+    scale.add(object.scale, 'z', 0.01, 10, 0.001).listen().onChange(markOverridden);
   }
 
   private addLightProperties(light: EditableLight): void {
@@ -453,7 +468,7 @@ export class DebugPanel {
       surface.add(material, 'emissiveIntensity', 0, 10, 0.01).name('Emissive power').listen();
     }
     if (material instanceof THREE.MeshStandardMaterial) {
-      surface.add(material, 'roughness', 0, 1, 0.001).name('Roughness').listen();
+      surface.add(material, 'roughness', 0, 2, 0.001).name('Roughness').listen();
       surface.add(material, 'metalness', 0, 1, 0.001).name('Metalness').listen();
       surface.add(material, 'envMapIntensity', 0, 5, 0.01).name('Environment').listen();
       surface.add(material.normalScale, 'x', -3, 3, 0.01).name('Normal X').listen();
@@ -544,6 +559,7 @@ export class DebugPanel {
   }
 
   private readonly onTransformChanged = (): void => {
+    if (this.selected instanceof THREE.Object3D) this.transformOverrides.set(this.selected, true);
     this.renderer.shadowMap.needsUpdate = true;
     if (this.selectedRotationProxy && this.selected instanceof THREE.Object3D) {
       this.selectedRotationProxy.x = THREE.MathUtils.radToDeg(this.selected.rotation.x);
@@ -553,6 +569,16 @@ export class DebugPanel {
     this.updateSelectedLightDirection();
     this.updateSelectedHelper();
   };
+
+  private resetObjectOffsets(): void {
+    const reset = this.sceneRuntime.resetEditableObjectTransforms();
+    reset.forEach((object) => this.transformOverrides.set(object, false));
+    this.renderer.shadowMap.needsUpdate = true;
+    this.rebuildProperties();
+    this.updateSelectedHelper();
+    this.gui.title('LEVEL EDITOR - OFFSETS RESET');
+    window.setTimeout(() => this.gui.title('LEVEL EDITOR'), 1200);
+  }
 
   private updateSelectedLightDirection(): void {
     if (!(this.selected instanceof THREE.SpotLight) || this.transform.getMode() !== 'rotate') return;
@@ -595,7 +621,7 @@ export class DebugPanel {
   }
 
   private async saveConfig(): Promise<void> {
-    const objects: SerializableObject[] = [...this.editableObjects, ...this.lights].map((object) => {
+    const objects: SerializableObject[] = [...new Set([...this.editableObjects, ...this.lights])].map((object) => {
       const serialized: SerializableObject = {
         name: object.name || object.type,
         type: object.type,
@@ -604,6 +630,9 @@ export class DebugPanel {
         scale: object.scale.toArray(),
         visible: object.visible,
       };
+      if (this.transformOverrides.has(object)) {
+        serialized.transformOverride = this.transformOverrides.get(object);
+      }
       if (this.isEditableLight(object)) serialized.properties = lightProperties(object);
       return serialized;
     });
@@ -612,6 +641,7 @@ export class DebugPanel {
         exposure: this.renderer.toneMappingExposure,
         environmentIntensity: this.studioEnvironment.intensity,
         environmentRotationY: this.studioEnvironment.rotationDegrees,
+        cinematicTextures: this.textureStreaming.cinematicMode,
       },
       objects,
       materials: this.materials.map(serializeMaterial),

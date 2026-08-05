@@ -1,5 +1,8 @@
 param(
-  [switch]$Force
+  [switch]$Force,
+  [switch]$Cinematic,
+  [ValidateSet('1K', '2K', '4K', '8K')]
+  [string]$OnlyTier
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,12 +19,15 @@ if (!(Test-Path -LiteralPath $Basisu)) {
 }
 
 $Jobs = @(
-  @{ Source = 'T_Player1_BaseColor.png'; Name = 'T_Player1_BaseColor'; Mode = 'srgb'; Tiers = @{ '1K' = 1024; '4K' = 4096; '8K' = 8192 } },
-  @{ Source = 'T_Player1_Normal.png'; Name = 'T_Player1_Normal'; Mode = 'normal'; Tiers = @{ '1K' = 1024; '4K' = 4096; '8K' = 8192 } },
-  @{ Source = 'T_Player1_OcclusionRoughnessMetallic.png'; Name = 'T_Player1_ORM'; Mode = 'linear'; Tiers = @{ '1K' = 1024; '4K' = 4096; '8K' = 8192 } },
-  @{ Source = 'T_Astreoid Rock Black_BaseColor.jpg'; Name = 'T_AsteroidBlack_BaseColor'; Mode = 'srgb'; Tiers = @{ '1K' = 1024; '2K' = 2048 } },
-  @{ Source = 'T_Astreoid Rock Black_Normal.jpg'; Name = 'T_AsteroidBlack_Normal'; Mode = 'normal'; Tiers = @{ '1K' = 1024; '2K' = 2048 } },
-  @{ Source = 'T_Astreoid Rock Black_Roughness.jpg'; Name = 'T_AsteroidBlack_Roughness'; Mode = 'linear'; Tiers = @{ '1K' = 1024; '2K' = 2048 } },
+  @{ Source = 'T_Player1_BaseColor.png'; Name = 'T_Player1_BaseColor'; Mode = 'srgb'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Player1_Normal.png'; Name = 'T_Player1_Normal'; Mode = 'normal'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Player1_OcclusionRoughnessMetallic.png'; Name = 'T_Player1_ORM'; Mode = 'linear'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_PodiumMat1_BaseColor.jpg'; Name = 'T_PodiumMat1_BaseColor'; Mode = 'srgb'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_PodiumMat1_Normal.jpg'; Name = 'T_PodiumMat1_Normal'; Mode = 'normal'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_PodiumMat1_Roughness.jpg'; Name = 'T_PodiumMat1_Roughness'; Mode = 'linear'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Spekaer1_BaseColor.png'; Name = 'T_Spekaer1_BaseColor'; Mode = 'srgb'; CinematicTier = '4K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Spekaer1_Normal.png'; Name = 'T_Spekaer1_Normal'; Mode = 'normal'; CinematicTier = '4K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Spekaer1_OcclusionRoughnessMetallic.png'; Name = 'T_Spekaer1_ORM'; Mode = 'linear'; CinematicTier = '4K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
   @{ Source = 'T_CD1_TestSample.png'; Name = 'T_CD1_TestSample'; Mode = 'srgb'; Tiers = @{ '1K' = 1024 } },
   @{ Source = 'T_ControlBar1.png'; Name = 'T_ControlBar1'; Mode = 'srgb'; Tiers = @{ '1K' = 1024 } }
 )
@@ -52,12 +58,12 @@ function Resize-Texture([string]$SourcePath, [string]$TargetPath, [int]$MaxSize)
   }
 }
 
-function Encode-Ktx2([string]$InputPath, [string]$OutputPath, [string]$Mode, [int]$Quality) {
-  $Arguments = @('-ktx2', '-mipmap', '-no_alpha', '-q', "$Quality", '-comp_level', '1', '-file', $InputPath, '-output_file', $OutputPath)
+function Encode-Ktx2([string]$InputPath, [string]$OutputPath, [string]$Mode, [int]$Quality, [int]$CompressionLevel) {
+  $Arguments = @('-ktx2', '-mipmap', '-no_alpha', '-q', "$Quality", '-comp_level', "$CompressionLevel", '-file', $InputPath, '-output_file', $OutputPath)
   if ($Mode -eq 'normal') {
-    $Arguments = @('-ktx2', '-mipmap', '-no_alpha', '-normal_map', '-q', "$Quality", '-comp_level', '1', '-file', $InputPath, '-output_file', $OutputPath)
+    $Arguments = @('-ktx2', '-mipmap', '-no_alpha', '-normal_map', '-q', "$Quality", '-comp_level', "$CompressionLevel", '-file', $InputPath, '-output_file', $OutputPath)
   } elseif ($Mode -eq 'linear') {
-    $Arguments = @('-ktx2', '-mipmap', '-no_alpha', '-linear', '-q', "$Quality", '-comp_level', '1', '-file', $InputPath, '-output_file', $OutputPath)
+    $Arguments = @('-ktx2', '-mipmap', '-no_alpha', '-linear', '-q', "$Quality", '-comp_level', "$CompressionLevel", '-file', $InputPath, '-output_file', $OutputPath)
   }
   & $Basisu @Arguments
   if ($LASTEXITCODE -ne 0) {
@@ -69,11 +75,16 @@ function Get-Quality([string]$Tier, [string]$Mode) {
   $Quality = switch ($Tier) {
     '1K' { 155 }
     '2K' { 185 }
-    '4K' { 195 }
-    '8K' { 220 }
+    '4K' { 230 }
+    '8K' { 245 }
   }
   if ($Mode -eq 'normal') { return [Math]::Min(255, $Quality + 10) }
   return $Quality
+}
+
+function Get-CompressionLevel([string]$Tier) {
+  if ($Tier -in @('4K', '8K')) { return 2 }
+  return 1
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory, $TemporaryDirectory | Out-Null
@@ -87,7 +98,32 @@ try {
       continue
     }
 
-    foreach ($Tier in $Job.Tiers.Keys) {
+    $TargetTiers = @($Job.Tiers.Keys)
+    if ($Cinematic) {
+      if (!$Job.ContainsKey('CinematicTier')) { continue }
+      $TargetTiers = @($Job.CinematicTier)
+    }
+
+    foreach ($Tier in $TargetTiers) {
+      if ($OnlyTier -and $Tier -ne $OnlyTier) { continue }
+
+      if ($Cinematic) {
+        if ([System.IO.Path]::GetExtension($SourcePath).ToLowerInvariant() -ne '.png') {
+          Write-Warning "Skipping non-PNG cinematic master: $($Job.Source)"
+          continue
+        }
+        $OutputPath = Join-Path $OutputDirectory "$($Job.Name)_$Tier.png"
+        $SourceTimestamp = (Get-Item -LiteralPath $SourcePath).LastWriteTimeUtc
+        if (!$Force -and (Test-Path -LiteralPath $OutputPath) -and (Get-Item -LiteralPath $OutputPath).LastWriteTimeUtc -ge $SourceTimestamp) {
+          Write-Host "Current  $($Job.Name) $Tier original PNG"
+          continue
+        }
+        Write-Host "Copy     $($Job.Name) $Tier original PNG"
+        Copy-Item -LiteralPath $SourcePath -Destination $OutputPath -Force
+        $Outputs++
+        continue
+      }
+
       $OutputPath = Join-Path $OutputDirectory "$($Job.Name)_$Tier.ktx2"
       $SourceTimestamp = (Get-Item -LiteralPath $SourcePath).LastWriteTimeUtc
       if (!$Force -and (Test-Path -LiteralPath $OutputPath) -and (Get-Item -LiteralPath $OutputPath).LastWriteTimeUtc -ge $SourceTimestamp) {
@@ -102,15 +138,18 @@ try {
       } finally {
         $SourceImage.Dispose()
       }
+      $NeedsPngConversion = [System.IO.Path]::GetExtension($SourcePath).ToLowerInvariant() -notin @('.png', '.jpg', '.jpeg')
       $EncodePath = $SourcePath
-      if ($NeedsResize) {
-        Write-Host "Resize   $($Job.Source) -> $Tier"
+      if ($NeedsResize -or $NeedsPngConversion) {
+        Write-Host "Prepare  $($Job.Source) -> $Tier PNG"
         Resize-Texture $SourcePath $TemporaryPath $Job.Tiers[$Tier]
         $EncodePath = $TemporaryPath
       }
       Write-Host "Encode   $($Job.Name) $Tier"
-      Encode-Ktx2 $EncodePath $OutputPath $Job.Mode (Get-Quality $Tier $Job.Mode)
-      if ($NeedsResize) { Remove-Item -LiteralPath $TemporaryPath -Force -ErrorAction SilentlyContinue }
+      Encode-Ktx2 $EncodePath $OutputPath $Job.Mode (Get-Quality $Tier $Job.Mode) (Get-CompressionLevel $Tier)
+      if ($NeedsResize -or $NeedsPngConversion) {
+        Remove-Item -LiteralPath $TemporaryPath -Force -ErrorAction SilentlyContinue
+      }
       $Outputs++
     }
   }

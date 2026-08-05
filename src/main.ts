@@ -9,6 +9,7 @@ import { InteractionRuntime } from './interaction/InteractionRuntime';
 import { PostProcessingRuntime } from './postprocessing/PostProcessingRuntime';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { CameraRuntime } from './scene/CameraRuntime';
+import { CameraNavigationRuntime } from './scene/CameraNavigationRuntime';
 import { SceneRuntime } from './scene/SceneRuntime';
 import { StudioEnvironmentRuntime } from './scene/StudioEnvironmentRuntime';
 import { TextureStreamingRuntime } from './scene/TextureStreamingRuntime';
@@ -22,10 +23,15 @@ function requireElement<T extends Element>(selector: string): T {
 
 const canvas = requireElement<HTMLCanvasElement>('#scene');
 const loading = requireElement<HTMLElement>('#loading');
+const loadingLabel = requireElement<HTMLElement>('#loading-label');
+const loadingProgress = requireElement<HTMLElement>('#loading-progress');
 const status = requireElement<HTMLElement>('#status');
 const debugToggle = requireElement<HTMLButtonElement>('#debug-toggle');
 const loadTrackButton = requireElement<HTMLButtonElement>('#load-track');
 const trackFileInput = requireElement<HTMLInputElement>('#track-file');
+const cameraNavigationRoot = requireElement<HTMLElement>('#camera-navigation');
+const cameraHotspots = requireElement<HTMLElement>('#camera-hotspots');
+const cameraBack = requireElement<HTMLButtonElement>('#camera-back');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -66,6 +72,7 @@ let physicsRuntime: PhysicsRuntime | null = null;
 let trackRuntime: TrackRuntime | null = null;
 let playerFoleyRuntime: PlayerFoleyRuntime | null = null;
 let debugPanel: DebugPanel | null = null;
+let cameraNavigation: CameraNavigationRuntime | null = null;
 let disposed = false;
 let shadowBurstSeconds = 1;
 let idleShadowElapsed = 0;
@@ -88,8 +95,10 @@ updateStatus();
 
 async function start(): Promise<void> {
   try {
-    const bindings = await sceneRuntime.load();
-    applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment });
+    const bindings = await sceneRuntime.load((progress) => {
+      loadingProgress.style.width = `${Math.round(progress * 100)}%`;
+    });
+    applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment, textureStreaming });
     sceneRuntime.refreshPresentation();
     physicsRuntime = await PhysicsRuntime.create(bindings);
     interactionRuntime = new InteractionRuntime(
@@ -118,13 +127,34 @@ async function start(): Promise<void> {
       sceneRuntime,
       studioEnvironment,
       postProcessing,
+      textureStreaming,
+      levelConfig,
     );
-    debugToggle.addEventListener('click', () => debugPanel?.toggle());
+    cameraNavigation = new CameraNavigationRuntime(
+      camera,
+      cameraRuntime,
+      sceneRuntime.cameraPoses,
+      sceneRuntime.cameraHints,
+      cameraNavigationRoot,
+      cameraHotspots,
+      cameraBack,
+    );
+    debugToggle.addEventListener('click', () => {
+      const visible = debugPanel?.toggle() ?? false;
+      debugToggle.setAttribute('aria-pressed', String(visible));
+      cameraNavigation?.setDebugMode(visible);
+    });
     loadTrackButton.disabled = false;
     textureStreaming.startDeferredUpgrades();
+    loadingProgress.style.width = '100%';
     loading.classList.add('is-hidden');
+    if (cameraNavigation.isGuided) {
+      window.setTimeout(() => cameraNavigation?.playIntro(), 650);
+    } else {
+      console.warn('[Camera navigation] CAM_Start and CAM_Overview were not found in Scene0.glb. Free camera fallback is active.');
+    }
   } catch (error) {
-    loading.textContent = error instanceof Error ? error.message : 'Scene loading failed.';
+    loadingLabel.textContent = error instanceof Error ? error.message : 'Scene loading failed.';
     loading.classList.add('is-error');
     console.error(error);
   }
@@ -142,6 +172,7 @@ renderer.setAnimationLoop(() => {
     || (physicsRuntime?.needsShadowUpdate() ?? false);
   textureStreaming.update(deltaSeconds);
   cameraRuntime.update(deltaSeconds);
+  cameraNavigation?.update();
   trackRuntime?.update(deltaSeconds);
   interactionRuntime?.update(deltaSeconds);
   physicsRuntime?.update(deltaSeconds);
@@ -151,6 +182,7 @@ renderer.setAnimationLoop(() => {
 
 function resize(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
+  cameraRuntime.resize();
   camera.updateProjectionMatrix();
   postProcessing.resize(window.innerWidth, window.innerHeight);
 }
@@ -164,6 +196,7 @@ function dispose(): void {
   physicsRuntime?.dispose();
   trackRuntime?.dispose();
   debugPanel?.dispose();
+  cameraNavigation?.dispose();
   cameraRuntime.dispose();
   sceneRuntime.dispose();
   textureStreaming.dispose();

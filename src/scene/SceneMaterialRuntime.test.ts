@@ -15,30 +15,30 @@ async function readGlbJson(path: URL): Promise<GlbJson> {
 }
 
 describe('scene material runtime', () => {
-  it('keeps the authored asteroid material contract in Scene0', async () => {
+  it('keeps the authored podium material contract in Scene0', async () => {
     const glb = await readGlbJson(new URL('../../assets/enviroment/Scene0.glb', import.meta.url));
-    expect(glb.materials?.some((material) => material.name === 'M_AsteroidBlack')).toBe(true);
+    expect(glb.materials?.some((material) => material.name?.trim() === 'M_PodiumMat1')).toBe(true);
   });
 
-  it('replaces every matching material slot and leaves other slots intact', () => {
-    const asteroid = new THREE.MeshStandardMaterial({ name: 'M_AsteroidBlack' });
+  it('replaces every normalized matching material slot and leaves other slots intact', () => {
+    const podium = new THREE.MeshStandardMaterial({ name: ' M_PodiumMat1' });
     const other = new THREE.MeshStandardMaterial({ name: 'Other' });
-    const replacement = new THREE.MeshStandardMaterial({ name: 'M_AsteroidBlack' });
+    const replacement = new THREE.MeshStandardMaterial({ name: 'M_PodiumMat1' });
     const root = new THREE.Group();
-    const first = new THREE.Mesh(new THREE.BoxGeometry(), asteroid);
-    const second = new THREE.Mesh(new THREE.BoxGeometry(), [other, asteroid]);
+    const first = new THREE.Mesh(new THREE.BoxGeometry(), podium);
+    const second = new THREE.Mesh(new THREE.BoxGeometry(), [other, podium]);
     root.add(first, second);
 
-    expect(hasMaterialNamed([root], 'M_AsteroidBlack')).toBe(true);
-    expect(replaceMaterialNamed([root], 'M_AsteroidBlack', replacement)).toEqual(new Set([asteroid]));
+    expect(hasMaterialNamed([root], 'M_PodiumMat1')).toBe(true);
+    expect(replaceMaterialNamed([root], 'M_PodiumMat1', replacement)).toEqual(new Set([podium]));
     expect(first.material).toBe(replacement);
     expect(second.material).toEqual([other, replacement]);
   });
 
-  it('configures every asteroid map for 4x repeat tiling', () => {
+  it('enables repeat wrapping while preserving authored UV scale', () => {
     const texture = prepareTiledTexture(new THREE.Texture(), THREE.SRGBColorSpace);
     expect(texture.wrapS).toBe(THREE.RepeatWrapping);
     expect(texture.wrapT).toBe(THREE.RepeatWrapping);
-    expect(texture.repeat.toArray()).toEqual([4, 4]);
+    expect(texture.repeat.toArray()).toEqual([1, 1]);
   });
 });

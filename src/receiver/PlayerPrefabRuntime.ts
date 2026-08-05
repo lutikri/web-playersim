@@ -17,9 +17,9 @@ const TEXTURES = {
       orm: new URL('../../assets/runtime-textures/T_Player1_ORM_4K.ktx2', import.meta.url).href,
     },
     high: {
-      baseColor: new URL('../../assets/runtime-textures/T_Player1_BaseColor_8K.ktx2', import.meta.url).href,
-      normal: new URL('../../assets/runtime-textures/T_Player1_Normal_8K.ktx2', import.meta.url).href,
-      orm: new URL('../../assets/runtime-textures/T_Player1_ORM_8K.ktx2', import.meta.url).href,
+      baseColor: new URL('../../assets/runtime-textures/T_Player1_BaseColor_8K.png', import.meta.url).href,
+      normal: new URL('../../assets/runtime-textures/T_Player1_Normal_8K.png', import.meta.url).href,
+      orm: new URL('../../assets/runtime-textures/T_Player1_ORM_8K.png', import.meta.url).href,
     },
   },
   controlBar: {
@@ -36,6 +36,8 @@ const POWER_STARTUP_SECONDS = POWER_BLACKOUT_SECONDS + POWER_VOLUME_SECONDS + PO
 const CD_READING_WITH_DISC_SECONDS = 6;
 const CD_READING_EMPTY_SECONDS = 2;
 const CD_BLINK_SECONDS = 0.35;
+const CD_READING_SPIN_RADIANS_PER_SECOND = 28;
+const CD_PLAYBACK_SPIN_RADIANS_PER_SECOND = 22;
 const LID_TRANSITION_SECONDS = 0.7;
 const LID_OPEN_ROTATION = Math.PI;
 const LID_LOCAL_AXIS = new THREE.Vector3(0, 1, 0);
@@ -71,6 +73,7 @@ export function composeLocalYRotation(
 export interface PlayerPrefabBindings {
   root: THREE.Object3D;
   discSocket: THREE.Object3D;
+  discLight: THREE.PointLight;
   powerButton: THREE.Object3D;
   volumeUpButton: THREE.Object3D;
   volumeDownButton: THREE.Object3D;
@@ -264,9 +267,18 @@ export class PlayerPrefabRuntime {
       if (object.name.startsWith('BtnScreen_')) object.visible = false;
     });
 
+    const discLightAnchor = requireObject(root, 'PL_LightDisk1', assetPath);
+    discLightAnchor.name = 'PL_LightDisk1_Anchor';
+    const discLight = new THREE.PointLight(0x9fc8ff, 1.4, 0.24, 2);
+    discLight.name = 'PL_LightDisk1';
+    discLight.visible = false;
+    discLight.userData.prefabProperty = true;
+    discLightAnchor.add(discLight);
+
     const runtime = new PlayerPrefabRuntime({
       root,
       discSocket: requireObject(root, 'SOKET_CD', assetPath),
+      discLight,
       powerButton: requireObject(root, 'SM_Button_Power', assetPath),
       volumeUpButton: requireObject(root, 'SM_Button_VOLUP', assetPath),
       volumeDownButton: requireObject(root, 'SM_Button_VOLDOWN', assetPath),
@@ -318,8 +330,8 @@ export class PlayerPrefabRuntime {
     }
     this.updateCdReading(deltaSeconds);
     const discSpinTarget = this.cdReadingElapsed !== null
-      ? 11
-      : this.store.getState().playback === 'playing' ? 8 : 0;
+      ? CD_READING_SPIN_RADIANS_PER_SECOND
+      : this.store.getState().playback === 'playing' ? CD_PLAYBACK_SPIN_RADIANS_PER_SECOND : 0;
     this.discSpinVelocity = THREE.MathUtils.damp(this.discSpinVelocity, discSpinTarget, 3.5, deltaSeconds);
     this.discSpinAngle = (this.discSpinAngle + this.discSpinVelocity * deltaSeconds) % (Math.PI * 2);
     if (this.lidAnimating) this.updateLid(deltaSeconds);
@@ -365,6 +377,7 @@ export class PlayerPrefabRuntime {
       if (next.transport !== 'closed') this.cancelCdReading();
       if (next.transport === 'closed' && next.selectedSource === 'cd') this.startCdReading(next);
     }
+    this.bindings.discLight.visible = next.power === 'on' && next.insertedDiscId !== null;
     this.drawDisplay(next);
   }
 
@@ -444,6 +457,7 @@ export class PlayerPrefabRuntime {
     const controlBarOn = state.power === 'on';
     this.controlBarMaterial.emissive.setHex(controlBarOn ? 0xffffff : 0x000000);
     this.controlBarMaterial.emissiveIntensity = controlBarOn ? 1.6 : 0;
+    this.bindings.discLight.visible = state.power === 'on' && state.insertedDiscId !== null;
   }
 
   private drawDisplay(state: AppState): void {

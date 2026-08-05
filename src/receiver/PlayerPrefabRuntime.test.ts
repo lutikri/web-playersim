@@ -32,6 +32,7 @@ describe('SM_Player1 asset contract', () => {
 
     expect([...nodes]).toEqual(expect.arrayContaining([
       'SOKET_CD',
+      'PL_LightDisk1',
       'SM_Button_Power',
       'SM_Button_VOLUP',
       'SM_Button_VOLDOWN',

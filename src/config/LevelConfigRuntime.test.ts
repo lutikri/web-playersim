@@ -70,4 +70,31 @@ describe('level config runtime', () => {
     });
     expect(speaker.position.toArray()).toEqual([4, 5, 6]);
   });
+
+  it('applies explicit marker overrides and preserves reset transforms', () => {
+    const scene = new THREE.Scene();
+    const speaker = new THREE.Group();
+    speaker.name = 'Speaker Left';
+    speaker.position.set(4, 5, 6);
+    speaker.userData.markerDriven = true;
+    scene.add(speaker);
+    const targets = {
+      scene,
+      renderer: { toneMappingExposure: 1 } as THREE.WebGLRenderer,
+      studioEnvironment: { intensity: 1, rotationDegrees: 0 } as never,
+    };
+
+    applyLevelConfig({ objects: [{
+      name: speaker.name, type: 'Group', position: [1, 2, 3], rotation: [0, 0, 0],
+      scale: [1, 1, 1], visible: true, transformOverride: true,
+    }] }, targets);
+    expect(speaker.position.toArray()).toEqual([1, 2, 3]);
+
+    speaker.position.set(4, 5, 6);
+    applyLevelConfig({ objects: [{
+      name: speaker.name, type: 'Group', position: [1, 2, 3], rotation: [0, 0, 0],
+      scale: [1, 1, 1], visible: true, transformOverride: false,
+    }] }, targets);
+    expect(speaker.position.toArray()).toEqual([4, 5, 6]);
+  });
 });

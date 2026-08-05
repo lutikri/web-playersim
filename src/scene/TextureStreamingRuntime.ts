@@ -3,7 +3,7 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 
 export type TextureMapKind = 'baseColor' | 'emissive' | 'normal' | 'orm' | 'roughness';
 export type TextureMapPaths = Partial<Record<TextureMapKind, string>>;
-export type TextureMaps = Partial<Record<TextureMapKind, THREE.CompressedTexture>>;
+export type TextureMaps = Partial<Record<TextureMapKind, THREE.Texture>>;
 
 export interface TextureTierSet {
   low: TextureMapPaths;
@@ -19,6 +19,7 @@ export interface TextureStreamOptions {
 
 export interface HighTierCapabilities {
   averageFps: number;
+  cinematic?: boolean;
   stableSeconds: number;
   deviceMemoryGb?: number;
   maxTextureSize: number;
@@ -51,9 +52,10 @@ const HIGH_TIER_FPS = 55;
 const HIGH_TIER_STABLE_SECONDS = 12;
 
 export function shouldAllowHighTextureTier(capabilities: HighTierCapabilities): boolean {
+  if (capabilities.maxTextureSize < 8192) return false;
+  if (capabilities.cinematic) return true;
   return capabilities.averageFps >= HIGH_TIER_FPS
     && capabilities.stableSeconds >= HIGH_TIER_STABLE_SECONDS
-    && capabilities.maxTextureSize >= 8192
     && (capabilities.deviceMemoryGb === undefined || capabilities.deviceMemoryGb >= 8)
     && !capabilities.saveData;
 }
@@ -64,6 +66,7 @@ function disposeMaps(maps: TextureMaps): void {
 
 export class TextureStreamingRuntime {
   private readonly loader: KTX2Loader;
+  private readonly textureLoader = new THREE.TextureLoader();
   private readonly registrations = new Set<StreamRegistration>();
   private readonly queue: UpgradeJob[] = [];
   private activeUpgrade = false;
@@ -71,9 +74,18 @@ export class TextureStreamingRuntime {
   private stableHighFpsSeconds = 0;
   private deferredUpgradesEnabled = false;
   private disposed = false;
+  private cinematicModeValue = false;
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {
     this.loader = new KTX2Loader().setTranscoderPath('/basis/').detectSupport(renderer);
+  }
+
+  get cinematicMode(): boolean {
+    return this.cinematicModeValue;
+  }
+
+  set cinematicMode(enabled: boolean) {
+    this.cinematicModeValue = enabled;
   }
 
   async stream(
@@ -197,7 +209,9 @@ export class TextureStreamingRuntime {
     const entries = Object.entries(paths) as Array<[TextureMapKind, string]>;
     const loaded: TextureMaps = {};
     const loadEntry = async ([kind, path]: [TextureMapKind, string]): Promise<void> => {
-      const texture = await this.loader.loadAsync(path);
+      const texture = path.toLowerCase().endsWith('.ktx2')
+        ? await this.loader.loadAsync(path)
+        : await this.textureLoader.loadAsync(path);
       texture.name = `${options.label}:${kind}`;
       texture.flipY = false;
       texture.colorSpace = kind === 'baseColor' || kind === 'emissive'
@@ -232,6 +246,7 @@ export class TextureStreamingRuntime {
     };
     return shouldAllowHighTextureTier({
       averageFps: this.averageFps,
+      cinematic: this.cinematicModeValue,
       stableSeconds: this.stableHighFpsSeconds,
       deviceMemoryGb: navigatorWithMemory.deviceMemory,
       maxTextureSize: this.renderer.capabilities.maxTextureSize,
