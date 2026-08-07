@@ -97,13 +97,19 @@ export class DebugPanel {
     this.select(this.editableObjects[0] ?? this.lights[0] ?? null);
     this.gui.hide();
     this.propertiesGui.hide();
+    this.transform.enabled = false;
     this.updateHelperVisibility();
   }
 
   toggle(): boolean {
-    this.panelVisible = !this.panelVisible;
+    return this.setVisible(!this.panelVisible);
+  }
+
+  setVisible(visible: boolean): boolean {
+    this.panelVisible = visible;
     this.gui.show(this.panelVisible);
     this.propertiesGui.show(this.panelVisible);
+    this.transform.enabled = this.panelVisible;
     this.updateHelperVisibility();
     return this.panelVisible;
   }
@@ -178,6 +184,7 @@ export class DebugPanel {
     antiAliasing.add(settings.antiAliasing, 'msaaSamples', { Off: 0, '2x': 2, '4x': 4, '8x': 8 })
       .name('MSAA samples')
       .onChange(() => this.postProcessing.rebuild());
+    antiAliasing.add(settings.antiAliasing, 'postSmaa').name('Post SMAA');
 
     const ambientOcclusion = post.addFolder('Ambient occlusion');
     ambientOcclusion.add(settings.ambientOcclusion, 'enabled').name('Enabled');
@@ -231,6 +238,8 @@ export class DebugPanel {
     depthOfField.add(settings.depthOfField, 'autofocus').name('Autofocus');
     depthOfField.add(settings.depthOfField, 'focus', 0.05, 20, 0.01).name('Focus distance');
     depthOfField.add(settings.depthOfField, 'focusSpeed', 0.1, 20, 0.1).name('Focus speed');
+    depthOfField.add(settings.depthOfField, 'maxFocusSpeed', 0.1, 10, 0.1).name('AF max speed');
+    depthOfField.add(settings.depthOfField, 'minDistance', 0.05, 2, 0.01).name('AF min distance');
     depthOfField.add(settings.depthOfField, 'maxDistance', 0.5, 50, 0.1).name('AF max distance');
     depthOfField.add(settings.depthOfField, 'aperture', 0, 0.2, 0.001).name('Aperture');
     depthOfField.add(settings.depthOfField, 'maxBlur', 0, 0.05, 0.0005).name('Max blur');

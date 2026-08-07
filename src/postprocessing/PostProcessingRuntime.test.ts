@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPostProcessingSettings } from './PostProcessingRuntime';
+import { createPostProcessingSettings, limitFocusStep } from './PostProcessingRuntime';
 
 describe('post-processing settings', () => {
   it('deep-merges partial saved settings without dropping defaults', () => {
@@ -17,7 +17,12 @@ describe('post-processing settings', () => {
     expect(settings.chromaticAberration.amount).toBeGreaterThan(0);
     expect(settings.depthOfField.enabled).toBe(false);
     expect(settings.depthOfField.autofocus).toBe(true);
-    expect(settings.antiAliasing).toEqual({ method: 'msaa', msaaSamples: 4 });
+    expect(settings.antiAliasing).toEqual({ method: 'msaa', msaaSamples: 4, postSmaa: true });
     expect(settings.renderScale).toBe(1);
+  });
+
+  it('limits autofocus travel per frame', () => {
+    expect(limitFocusStep(0.5, 8, 1.5, 0.1)).toBeCloseTo(0.65);
+    expect(limitFocusStep(3, 0.2, 1, 0.25)).toBeCloseTo(2.75);
   });
 });

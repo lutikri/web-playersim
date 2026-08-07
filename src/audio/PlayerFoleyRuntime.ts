@@ -64,6 +64,7 @@ export class PlayerFoleyRuntime {
         this.play(next.power === 'starting' ? SOUNDS.powerUp : this.randomClick(), 0.9);
         break;
       case 'VOLUME_CHANGED':
+      case 'VOLUME_BUTTON_PRESSED':
         this.play(this.randomClick(), 0.75);
         break;
       case 'SOURCE_SELECT_PRESSED':

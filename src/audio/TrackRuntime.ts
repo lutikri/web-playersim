@@ -6,6 +6,25 @@ import type { SceneBindings, SceneRuntime } from '../scene/SceneRuntime';
 
 const SUPPORTED_EXTENSIONS = new Set(['flac', 'mp3', 'wav']);
 const SPEAKER_CROSSOVER_HZ = 2200;
+const BUNDLED_DISCS = [
+  {
+    title: 'CIRCUITS',
+    durationSeconds: 349.875011,
+    marker: 'PF_ExampleDisk1',
+    url: new URL('../../assets/audio/Circuits.ogg', import.meta.url).href,
+  },
+  {
+    title: 'AFTER HOURS',
+    durationSeconds: 634.056,
+    marker: 'PF_ExampleDisk2',
+    url: new URL('../../assets/audio/AfterHours.ogg', import.meta.url).href,
+  },
+] as const;
+
+interface TrackPlaybackSource {
+  buffer?: AudioBuffer;
+  url?: string;
+}
 
 interface SpeakerPlaybackNodes {
   lowPanner: PannerNode;
@@ -41,10 +60,49 @@ function setAudioParam(param: AudioParam, value: number, time: number): void {
   param.setValueAtTime(value, time);
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Unable to create generated disc artwork.'));
+    }, 'image/png');
+  });
+}
+
+async function createFallbackCover(title: string, trackCount: number): Promise<Blob> {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 1024;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to create generated disc artwork canvas.');
+  context.fillStyle = '#030303';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.save();
+  context.translate(512, 280);
+  context.rotate(-0.055);
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = '#ebe8de';
+  const words = title.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  const lines = words.length > 1 ? words : [words[0] ?? 'UNTITLED'];
+  const fontSize = lines.some((line) => line.length > 11) ? 76 : 96;
+  context.font = `600 ${fontSize}px "Segoe Print", "Bradley Hand", cursive`;
+  const lineHeight = fontSize * 1.18;
+  const startY = -((lines.length - 1) * lineHeight) * 0.5;
+  lines.forEach((line, index) => context.fillText(line, 0, startY + index * lineHeight, 690));
+  if (trackCount > 1) {
+    context.font = '500 35px "Segoe Print", "Bradley Hand", cursive';
+    context.globalAlpha = 0.72;
+    context.fillText(`${trackCount} TRACKS`, 0, startY + lines.length * lineHeight + 28);
+  }
+  context.restore();
+  return canvasToBlob(canvas);
+}
+
 export class TrackRuntime {
   private context: AudioContext | null = null;
-  private buffers: AudioBuffer[] = [];
-  private readonly buffersByDisc = new Map<number, AudioBuffer[]>();
+  private tracks: TrackPlaybackSource[] = [];
+  private readonly tracksByDisc = new Map<number, TrackPlaybackSource[]>();
   private masterGain: GainNode | null = null;
   private foleyGain: GainNode | null = null;
   private readonly soundBuffers = new Map<string, Promise<AudioBuffer>>();
@@ -76,9 +134,9 @@ export class TrackRuntime {
       if (next.volume !== previous.volume) this.applyVolume(next.volume);
       if (next.insertedDiscId !== previous.insertedDiscId) {
         this.stopSource(true);
-        this.buffers = next.insertedDiscId === null
+        this.tracks = next.insertedDiscId === null
           ? []
-          : this.buffersByDisc.get(next.insertedDiscId) ?? [];
+          : this.tracksByDisc.get(next.insertedDiscId) ?? [];
         return;
       }
       if (next.currentTrackIndex !== previous.currentTrackIndex) {
@@ -111,23 +169,45 @@ export class TrackRuntime {
     }));
     if (generation !== this.operationGeneration) return;
     const discId = ++this.discId;
-    const buffers = loaded.map((item) => item.buffer);
-    const cover = loaded.find((item) => item.cover)?.cover ?? null;
+    const titles = loaded.map(({ file, metadata }) => metadata?.common.title?.trim() || file.name.replace(/\.[^.]+$/, ''));
+    const embeddedCover = loaded.find((item) => item.cover)?.cover ?? null;
+    const cover = embeddedCover ?? await createFallbackCover(titles[0] ?? 'UNTITLED', loaded.length);
     const disc = await this.sceneRuntime.spawnDisc(discId, cover);
     if (generation !== this.operationGeneration) return;
-    this.buffersByDisc.set(discId, buffers);
+    this.tracksByDisc.set(discId, loaded.map((item) => ({ buffer: item.buffer })));
     this.physics.registerDisc(discId, disc.root, disc.collider);
     this.onDiscSpawned(discId, disc.root);
     this.store.dispatch({
       type: 'TRACKS_LOADED',
       discId,
-      tracks: loaded.map(({ file, metadata, buffer, cover: trackCover }) => ({
+      tracks: loaded.map(({ buffer, cover: trackCover }, index) => ({
         id: ++this.trackId,
-        title: metadata?.common.title?.trim() || file.name.replace(/\.[^.]+$/, ''),
+        title: titles[index],
         durationSeconds: buffer.duration,
         hasCover: trackCover !== null,
       })),
     });
+  }
+
+  async loadBundledDiscs(): Promise<void> {
+    for (const definition of BUNDLED_DISCS) {
+      const discId = ++this.discId;
+      const cover = await createFallbackCover(definition.title, 1);
+      const disc = await this.sceneRuntime.spawnDisc(discId, cover, definition.marker);
+      this.tracksByDisc.set(discId, [{ url: definition.url }]);
+      this.physics.registerDisc(discId, disc.root, disc.collider);
+      this.onDiscSpawned(discId, disc.root);
+      this.store.dispatch({
+        type: 'TRACKS_LOADED',
+        discId,
+        tracks: [{
+          id: ++this.trackId,
+          title: definition.title,
+          durationSeconds: definition.durationSeconds,
+          hasCover: false,
+        }],
+      });
+    }
   }
 
   update(deltaSeconds: number): void {
@@ -257,11 +337,21 @@ export class TrackRuntime {
   }
 
   private async startSource(): Promise<void> {
-    const buffer = this.buffers[this.store.getState().currentTrackIndex];
-    if (!buffer || this.source) return;
+    const requestedState = this.store.getState();
+    const requestedTrackIndex = requestedState.currentTrackIndex;
+    const requestedDiscId = requestedState.insertedDiscId;
+    const track = this.tracks[requestedTrackIndex];
+    if (!track || this.source) return;
     const context = this.ensureContext();
     await context.resume();
-    if (this.store.getState().playback !== 'playing') return;
+    const buffer = track.buffer ?? (track.url ? await this.loadSoundBuffer(track.url) : null);
+    const currentState = this.store.getState();
+    if (!buffer
+      || currentState.playback !== 'playing'
+      || currentState.insertedDiscId !== requestedDiscId
+      || currentState.currentTrackIndex !== requestedTrackIndex
+      || this.source) return;
+    track.buffer = buffer;
     const source = context.createBufferSource();
     const splitter = context.createChannelSplitter(2);
     source.buffer = buffer;
@@ -371,7 +461,7 @@ export class TrackRuntime {
     if (source && this.context) {
       this.source = null;
       source.onended = null;
-      const buffer = this.buffers[this.store.getState().currentTrackIndex];
+      const buffer = source.buffer;
       if (!resetOffset && buffer) {
         this.playbackOffset = (this.playbackOffset + this.context.currentTime - this.playbackStartedAt)
           % buffer.duration;

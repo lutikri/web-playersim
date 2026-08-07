@@ -1,7 +1,7 @@
 {
   "level": {
     "exposure": 1.3,
-    "environmentIntensity": 0.23,
+    "environmentIntensity": 0.38,
     "environmentRotationY": 24,
     "cinematicTextures": false
   },
@@ -12,7 +12,7 @@
       "position": [
         0,
         0,
-        -0.0003228897875607664
+        0
       ],
       "rotation": [
         0,
@@ -25,13 +25,13 @@
         1
       ],
       "visible": true,
-      "transformOverride": true
+      "transformOverride": false
     },
     {
       "name": "Player",
       "type": "Group",
       "position": [
-        -0.1117800772190094,
+        -0.10404492169618607,
         -0.00010728836059570312,
         0
       ],
@@ -151,7 +151,7 @@
       "position": [
         0.7555429431324601,
         0.45550424914041143,
-        0.6885886215887249
+        0.41584817447301625
       ],
       "rotation": [
         0,
@@ -187,8 +187,8 @@
       "type": "PointLight",
       "position": [
         -0.4769286456290568,
-        0.4931832752499967,
-        -0.3038804714732562
+        0.4627471209897511,
+        -0.14097383190315615
       ],
       "rotation": [
         0,
@@ -202,8 +202,8 @@
       ],
       "visible": true,
       "properties": {
-        "color": "#7da5c7",
-        "intensity": 0.9,
+        "color": "#cdd9fe",
+        "intensity": 0.4,
         "distance": 4,
         "decay": 1.7,
         "castShadow": false,
@@ -216,9 +216,9 @@
       "name": "Point Light 1",
       "type": "PointLight",
       "position": [
-        -0.463349572377464,
-        -0.15557418491073444,
-        -0.5128868174533191
+        -0.5848591846237894,
+        -0.05553736385438052,
+        0.20207691307877823
       ],
       "rotation": [
         0,
@@ -233,8 +233,8 @@
       "visible": true,
       "properties": {
         "color": "#ba7136",
-        "intensity": 1.75,
-        "distance": 0.9,
+        "intensity": 1.3,
+        "distance": 0.7,
         "decay": 1.37,
         "castShadow": false,
         "shadowBias": 0,
@@ -245,7 +245,7 @@
   ],
   "materials": [
     {
-      "uuid": "396bd68c-65b4-4fd6-86ca-326b0f710827",
+      "uuid": "eb112f8d-9483-463a-bba6-d1b2c2d3af21",
       "name": "MI_COL",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -265,7 +265,7 @@
       }
     },
     {
-      "uuid": "96ec35e8-31f2-4ae0-9f36-e32b10eb195b",
+      "uuid": "5b2a7369-07a5-4180-ac4f-cfe811547ce4",
       "name": "M_PodiumMat1",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -276,8 +276,8 @@
         "depthTest": true,
         "depthWrite": true,
         "side": 0,
-        "color": "#404040",
-        "roughness": 1.334,
+        "color": "#b0b0b0",
+        "roughness": 0.958,
         "metalness": 0,
         "envMapIntensity": 1,
         "emissive": "#000000",
@@ -285,121 +285,7 @@
       }
     },
     {
-      "uuid": "a141e5dd-352a-4f54-b0ff-7c05af31119c",
-      "name": "M_DiskGraphic1",
-      "type": "MeshStandardMaterial",
-      "properties": {
-        "visible": true,
-        "opacity": 1,
-        "transparent": false,
-        "alphaTest": 0,
-        "depthTest": true,
-        "depthWrite": true,
-        "side": 0,
-        "color": "#ffffff",
-        "roughness": 0.42,
-        "metalness": 0.08,
-        "envMapIntensity": 0.18400000000000002,
-        "emissive": "#000000",
-        "emissiveIntensity": 1
-      }
-    },
-    {
-      "uuid": "12015f76-e247-4402-95ee-5d022f690712",
-      "name": "M_DiskTransparent",
-      "type": "MeshPhysicalMaterial",
-      "properties": {
-        "visible": true,
-        "opacity": 0.078,
-        "transparent": true,
-        "alphaTest": 0,
-        "depthTest": true,
-        "depthWrite": false,
-        "side": 2,
-        "color": "#9e9e9e",
-        "roughness": 0.12,
-        "metalness": 0.061,
-        "envMapIntensity": 0.24150000000000002,
-        "emissive": "#000000",
-        "emissiveIntensity": 1,
-        "transmission": 0,
-        "ior": 1.49,
-        "thickness": 0.001,
-        "attenuationColor": "#ffffff",
-        "attenuationDistance": null,
-        "clearcoat": 0.3,
-        "clearcoatRoughness": 0.08,
-        "anisotropy": 0,
-        "anisotropyRotation": 0,
-        "iridescence": 0,
-        "iridescenceIOR": 1.3,
-        "iridescenceThicknessRange": [
-          575,
-          575
-        ],
-        "specularIntensity": 1,
-        "specularColor": "#ffffff"
-      }
-    },
-    {
-      "uuid": "b2e42679-8168-4cbd-9fa3-c5df42686a61",
-      "name": "M_DiskMetallic",
-      "type": "MeshStandardMaterial",
-      "properties": {
-        "visible": true,
-        "opacity": 1,
-        "transparent": false,
-        "alphaTest": 0,
-        "depthTest": true,
-        "depthWrite": true,
-        "side": 0,
-        "color": "#d1d1d1",
-        "roughness": 0.163,
-        "metalness": 0.932,
-        "envMapIntensity": 0.276,
-        "emissive": "#000000",
-        "emissiveIntensity": 1
-      }
-    },
-    {
-      "uuid": "985f9af1-ca17-4471-8cb9-1495e83a02f6",
-      "name": "M_DiskAnisotrophic",
-      "type": "MeshPhysicalMaterial",
-      "properties": {
-        "visible": true,
-        "opacity": 1,
-        "transparent": false,
-        "alphaTest": 0,
-        "depthTest": true,
-        "depthWrite": true,
-        "side": 0,
-        "color": "#a1a1a1",
-        "roughness": 0,
-        "metalness": 0.72,
-        "envMapIntensity": 0.3795,
-        "emissive": "#000000",
-        "emissiveIntensity": 1,
-        "transmission": 0,
-        "ior": 1.5,
-        "thickness": 0,
-        "attenuationColor": "#ffffff",
-        "attenuationDistance": null,
-        "clearcoat": 0.28,
-        "clearcoatRoughness": 0.1,
-        "anisotropy": 0.957,
-        "anisotropyRotation": 3.141592653589793,
-        "iridescence": 0.71,
-        "iridescenceIOR": 1.411,
-        "iridescenceThicknessRange": [
-          206,
-          519
-        ],
-        "specularIntensity": 1,
-        "specularColor": "#ffffff"
-      }
-    },
-    {
-      "uuid": "06d099ef-c088-4a8e-af35-579ae1fd7ef0",
+      "uuid": "6977deb5-ac3a-4231-bf24-1c2b4e8e7316",
       "name": "MI_COL",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -419,7 +305,7 @@
       }
     },
     {
-      "uuid": "764d4366-944b-480d-8632-1aec6de38024",
+      "uuid": "ded66d05-0329-43ca-ada5-d7f453f176ac",
       "name": "MeshStandardMaterial",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -439,7 +325,7 @@
       }
     },
     {
-      "uuid": "bb23f4a4-cf3b-494c-bded-e64977d21e05",
+      "uuid": "b2f2d66b-ff15-4b1e-9749-534b0428312c",
       "name": "M_ControlBar_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -455,11 +341,11 @@
         "metalness": 0,
         "envMapIntensity": 1,
         "emissive": "#ffffff",
-        "emissiveIntensity": 1.6
+        "emissiveIntensity": 2.74
       }
     },
     {
-      "uuid": "fcebbe8e-1080-451c-990d-e28dc1809c68",
+      "uuid": "d768e45a-bdd0-4abd-8a4b-eef674502ddc",
       "name": "M_Screen_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -475,11 +361,11 @@
         "metalness": 0,
         "envMapIntensity": 1,
         "emissive": "#ffffff",
-        "emissiveIntensity": 1.72
+        "emissiveIntensity": 3.42
       }
     },
     {
-      "uuid": "6c83d346-2fc7-4564-a285-58cb25199aee",
+      "uuid": "0d381d3f-064e-4174-b5b1-ff4c15cb8ada",
       "name": "M_StatusLight1_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -499,7 +385,7 @@
       }
     },
     {
-      "uuid": "2adc4c35-2a4d-438d-b126-101fe61083be",
+      "uuid": "9909eea1-8a91-4d54-81cb-e843bb1fbdb9",
       "name": "M_Player1_Runtime",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -513,18 +399,18 @@
         "color": "#ffffff",
         "roughness": 1,
         "metalness": 1,
-        "envMapIntensity": 0.28750000000000003,
+        "envMapIntensity": 0.475,
         "emissive": "#000000",
         "emissiveIntensity": 1
       }
     },
     {
-      "uuid": "c57e9dcd-6316-4bc5-8b39-179907987b85",
+      "uuid": "54c1c867-8b63-4d4e-a086-d0192aff1c91",
       "name": "M_ScreenGlass1_Runtime",
       "type": "MeshPhysicalMaterial",
       "properties": {
         "visible": true,
-        "opacity": 0.838,
+        "opacity": 0.616,
         "transparent": true,
         "alphaTest": 0,
         "depthTest": true,
@@ -533,7 +419,7 @@
         "color": "#000000",
         "roughness": 0.103,
         "metalness": 0.069,
-        "envMapIntensity": 0.17250000000000001,
+        "envMapIntensity": 0.28500000000000003,
         "emissive": "#000000",
         "emissiveIntensity": 1,
         "transmission": 0,
@@ -556,7 +442,7 @@
       }
     },
     {
-      "uuid": "9e042f52-b429-48c8-b49b-d4c5f20152d6",
+      "uuid": "ad3bb2a8-9efb-406e-bf19-54ca3c0a84a9",
       "name": "M_GlassLid1_Runtime",
       "type": "MeshPhysicalMaterial",
       "properties": {
@@ -570,7 +456,7 @@
         "color": "#030303",
         "roughness": 0.189,
         "metalness": 0.05,
-        "envMapIntensity": 0.1955,
+        "envMapIntensity": 0.323,
         "emissive": "#000000",
         "emissiveIntensity": 1,
         "transmission": 0,
@@ -593,22 +479,7 @@
       }
     },
     {
-      "uuid": "b4f4c4eb-216e-4a4b-b7cc-95fa50cfa39f",
-      "name": "MeshBasicMaterial",
-      "type": "MeshBasicMaterial",
-      "properties": {
-        "visible": true,
-        "opacity": 0.9,
-        "transparent": true,
-        "alphaTest": 0,
-        "depthTest": false,
-        "depthWrite": true,
-        "side": 0,
-        "color": "#39baff"
-      }
-    },
-    {
-      "uuid": "473fd561-2ae8-4aee-bedb-8f4885efa3af",
+      "uuid": "f8e41623-4d93-4470-adfd-76d070e471d9",
       "name": "M_Speaker1",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -622,13 +493,13 @@
         "color": "#ffffff",
         "roughness": 1,
         "metalness": 1,
-        "envMapIntensity": 0.2645,
+        "envMapIntensity": 0.43699999999999994,
         "emissive": "#000000",
         "emissiveIntensity": 1
       }
     },
     {
-      "uuid": "ad5935f9-4a3b-4ccc-8eee-b98c2fc62623",
+      "uuid": "df9d86e5-eb58-43c9-95d9-b1d2fe723c73",
       "name": "MI_COL",
       "type": "MeshStandardMaterial",
       "properties": {
@@ -648,7 +519,7 @@
       }
     },
     {
-      "uuid": "7d42a68b-dc69-433d-a995-5ef3274ca3e3",
+      "uuid": "b749ea82-dbf0-4011-879d-3473743675cf",
       "name": "MeshBasicMaterial",
       "type": "MeshBasicMaterial",
       "properties": {
@@ -661,44 +532,315 @@
         "side": 0,
         "color": "#39baff"
       }
+    },
+    {
+      "uuid": "68262922-31b2-4c73-ad5d-3885f3fa24fa",
+      "name": "M_DiskGraphic1",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#ffffff",
+        "roughness": 0.42,
+        "metalness": 0.08,
+        "envMapIntensity": 0.30400000000000005,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "c4e129b2-cde0-4f42-868e-9fb2d3c4aece",
+      "name": "M_DiskTransparent",
+      "type": "MeshPhysicalMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 0.42,
+        "transparent": true,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": false,
+        "side": 2,
+        "color": "#e8f1f3",
+        "roughness": 0.08,
+        "metalness": 0,
+        "envMapIntensity": 0.399,
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "transmission": 0.62,
+        "ior": 1.49,
+        "thickness": 0.001,
+        "attenuationColor": "#ffffff",
+        "attenuationDistance": null,
+        "clearcoat": 0.3,
+        "clearcoatRoughness": 0.08,
+        "anisotropy": 0,
+        "anisotropyRotation": 0,
+        "iridescence": 0,
+        "iridescenceIOR": 1.3,
+        "iridescenceThicknessRange": [
+          100,
+          400
+        ],
+        "specularIntensity": 1,
+        "specularColor": "#ffffff"
+      }
+    },
+    {
+      "uuid": "d82a8761-6ba6-4128-81d4-4a5beefa5e64",
+      "name": "M_DiskMetallic",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#aeb4bb",
+        "roughness": 0.2,
+        "metalness": 0.92,
+        "envMapIntensity": 0.45599999999999996,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "5f7b236a-5c1a-4b8a-bd55-01d053af51f7",
+      "name": "M_DiskAnisotrophic",
+      "type": "MeshPhysicalMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#c7ccd2",
+        "roughness": 0.14,
+        "metalness": 0.72,
+        "envMapIntensity": 0.627,
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "transmission": 0,
+        "ior": 1.5,
+        "thickness": 0,
+        "attenuationColor": "#ffffff",
+        "attenuationDistance": null,
+        "clearcoat": 0.28,
+        "clearcoatRoughness": 0.1,
+        "anisotropy": 1,
+        "anisotropyRotation": 0,
+        "iridescence": 0.9,
+        "iridescenceIOR": 1.3,
+        "iridescenceThicknessRange": [
+          120,
+          520
+        ],
+        "specularIntensity": 1,
+        "specularColor": "#ffffff"
+      }
+    },
+    {
+      "uuid": "090249af-34bc-4b51-8d1b-7d9ef354ea37",
+      "name": "MI_COL",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 2,
+        "color": "#00bcff",
+        "roughness": 0.5,
+        "metalness": 0,
+        "envMapIntensity": 1,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "076d8147-e9c3-400c-a950-864955aaf968",
+      "name": "M_DiskGraphic1",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#ffffff",
+        "roughness": 0.42,
+        "metalness": 0.08,
+        "envMapIntensity": 0.30400000000000005,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "095dae8c-fa3f-4d02-b6d4-57f31a43a6f5",
+      "name": "M_DiskTransparent",
+      "type": "MeshPhysicalMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 0.42,
+        "transparent": true,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": false,
+        "side": 2,
+        "color": "#e8f1f3",
+        "roughness": 0.08,
+        "metalness": 0,
+        "envMapIntensity": 0.399,
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "transmission": 0.62,
+        "ior": 1.49,
+        "thickness": 0.001,
+        "attenuationColor": "#ffffff",
+        "attenuationDistance": null,
+        "clearcoat": 0.3,
+        "clearcoatRoughness": 0.08,
+        "anisotropy": 0,
+        "anisotropyRotation": 0,
+        "iridescence": 0,
+        "iridescenceIOR": 1.3,
+        "iridescenceThicknessRange": [
+          100,
+          400
+        ],
+        "specularIntensity": 1,
+        "specularColor": "#ffffff"
+      }
+    },
+    {
+      "uuid": "77300ede-9bc7-4d5e-8277-b6c6bf7efc95",
+      "name": "M_DiskMetallic",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#aeb4bb",
+        "roughness": 0.2,
+        "metalness": 0.92,
+        "envMapIntensity": 0.45599999999999996,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
+    },
+    {
+      "uuid": "c4451b15-3f24-4020-9a85-b6eb27b936aa",
+      "name": "M_DiskAnisotrophic",
+      "type": "MeshPhysicalMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 0,
+        "color": "#c7ccd2",
+        "roughness": 0.14,
+        "metalness": 0.72,
+        "envMapIntensity": 0.627,
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "transmission": 0,
+        "ior": 1.5,
+        "thickness": 0,
+        "attenuationColor": "#ffffff",
+        "attenuationDistance": null,
+        "clearcoat": 0.28,
+        "clearcoatRoughness": 0.1,
+        "anisotropy": 1,
+        "anisotropyRotation": 0,
+        "iridescence": 0.9,
+        "iridescenceIOR": 1.3,
+        "iridescenceThicknessRange": [
+          120,
+          520
+        ],
+        "specularIntensity": 1,
+        "specularColor": "#ffffff"
+      }
+    },
+    {
+      "uuid": "3ceec175-85ae-451c-aace-f090f2b55732",
+      "name": "MI_COL",
+      "type": "MeshStandardMaterial",
+      "properties": {
+        "visible": true,
+        "opacity": 1,
+        "transparent": false,
+        "alphaTest": 0,
+        "depthTest": true,
+        "depthWrite": true,
+        "side": 2,
+        "color": "#00bcff",
+        "roughness": 0.5,
+        "metalness": 0,
+        "envMapIntensity": 1,
+        "emissive": "#000000",
+        "emissiveIntensity": 1
+      }
     }
   ],
   "postProcessing": {
     "enabled": true,
-    "renderScale": 0.85,
+    "renderScale": 1,
     "antiAliasing": {
       "method": "msaa",
-      "msaaSamples": 2
+      "msaaSamples": 4,
+      "postSmaa": true
     },
     "ambientOcclusion": {
       "enabled": true,
-      "resolutionScale": 0.5,
-      "intensity": 0.91,
-      "radius": 0.28,
-      "distanceExponent": 1.95,
-      "thickness": 0.52,
-      "distanceFallOff": 1,
-      "scale": 1.3,
-      "samples": 8,
+      "resolutionScale": 1,
+      "intensity": 1.6,
+      "radius": 0.04,
+      "distanceExponent": 1.05,
+      "thickness": 0.41,
+      "distanceFallOff": 1.27,
+      "scale": 0.75,
+      "samples": 16,
       "denoiseRadius": 2,
       "denoiseSamples": 4
     },
     "chromaticAberration": {
       "enabled": true,
-      "amount": 0.0029
+      "amount": 0.0024
     },
     "depthOfField": {
-      "enabled": true,
+      "enabled": false,
       "autofocus": true,
       "focus": 0.36,
       "focusSpeed": 7,
+      "maxFocusSpeed": 1.4,
+      "minDistance": 0.18,
       "maxDistance": 12,
       "aperture": 0.02,
       "maxBlur": 0.002
     },
     "bloom": {
       "enabled": true,
-      "strength": 0.94,
+      "strength": 0.19,
       "radius": 0.45,
       "threshold": 0.79
     },

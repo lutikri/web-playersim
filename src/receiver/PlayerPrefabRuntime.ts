@@ -98,6 +98,15 @@ function requireObject(root: THREE.Object3D, name: string, assetPath: string): T
   throw new Error(`Missing required player object "${name}" in ${assetPath}. Top-level objects: ${available}`);
 }
 
+function requireLidCollider(root: THREE.Object3D, assetPath: string): THREE.Object3D {
+  let collider: THREE.Object3D | null = null;
+  root.traverse((object) => {
+    if (!collider && /^U[BC]X_.*CDLid/i.test(object.name)) collider = object;
+  });
+  if (collider) return collider;
+  throw new Error(`Missing CD lid collider in ${assetPath}. Expected a UCX_/UBX_ node containing "CDLid".`);
+}
+
 function replaceMaterial(root: THREE.Object3D, sourceName: string, replacement: THREE.Material): number {
   let replacements = 0;
   root.traverse((object) => {
@@ -287,7 +296,7 @@ export class PlayerPrefabRuntime {
       nextButton: requireObject(root, 'BtnScreen_Next', assetPath),
       previousButton: requireObject(root, 'BtnScreen_Prev', assetPath),
       stopButton: requireObject(root, 'BtnScreen_Stop', assetPath),
-      lidInteraction: requireObject(root, 'SM_CDLid', assetPath),
+      lidInteraction: requireLidCollider(root, assetPath),
       lidRotationParent: requireObject(root, 'CDLidRotParent1', assetPath),
     }, store, { body, screen, screenGlass, lidGlass, status, controlBar: controlBarMaterial }, [
       screenTexture,
@@ -441,6 +450,7 @@ export class PlayerPrefabRuntime {
       this.bindings.lidRotationParent.quaternion,
       this.lidDeltaQuaternion,
     );
+    this.bindings.lidRotationParent.updateMatrixWorld(true);
     if (progress < 1) return;
     this.lidAnimating = false;
     this.store.dispatch({

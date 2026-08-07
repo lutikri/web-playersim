@@ -16,6 +16,13 @@ describe('appReducer', () => {
     expect(appReducer(powered, { type: 'VOLUME_CHANGED', delta: -100 }).volume).toBe(0);
   });
 
+  it('emits a state tick for a physical volume click while powered off', () => {
+    const clicked = appReducer(initialState, { type: 'VOLUME_BUTTON_PRESSED' });
+    expect(clicked).not.toBe(initialState);
+    expect(clicked.volume).toBe(initialState.volume);
+    expect(clicked.power).toBe('off');
+  });
+
   it('cycles receiver inputs only while powered on', () => {
     expect(appReducer(initialState, { type: 'SOURCE_SELECT_PRESSED' })).toBe(initialState);
     let state: AppState = { ...initialState, power: 'on' };

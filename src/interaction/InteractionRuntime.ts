@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Store } from '../app/Store';
+import type { DiscLocation, Store, TransportState } from '../app/Store';
 import type { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import type { CameraRuntime } from '../scene/CameraRuntime';
 import type { SceneBindings, SceneRuntime } from '../scene/SceneRuntime';
@@ -12,11 +12,17 @@ export function shouldCommitClick(pressed: ClickAction | null, released: Action 
   return pressed !== null && pressed === released;
 }
 
+export function isDiscPickable(location: DiscLocation, transport: TransportState): boolean {
+  return location === 'table' || (location === 'player' && transport === 'open');
+}
+
 interface DragState {
   discId: number;
+  minimumWorldY: number | null;
   pointerId: number;
   plane: THREE.Plane;
   offset: THREE.Vector3;
+  socketAssistArmed: boolean;
   targetWorld: THREE.Vector3;
 }
 
@@ -26,7 +32,29 @@ interface PickResult {
   point: THREE.Vector3;
 }
 
+interface PickDebugRow {
+  mesh: string;
+  path: string;
+  distance: number;
+  action: Action | '-';
+  discId: number | '-';
+  result: 'accepted' | 'skipped';
+  reason: string;
+}
+
 const DISC_SNAP_DISTANCE = 0.115;
+const DISC_REMOVAL_LIFT = 0.055;
+const SOCKET_CURSOR_RADIUS = 0.24;
+
+export function socketAttractionStrength(
+  pointer: THREE.Vector2,
+  socket: THREE.Vector2,
+  radius = SOCKET_CURSOR_RADIUS,
+): number {
+  const normalizedDistance = pointer.distanceTo(socket) / Math.max(radius, 1e-6);
+  const proximity = THREE.MathUtils.clamp(1 - normalizedDistance, 0, 1);
+  return proximity * proximity * (3 - 2 * proximity);
+}
 
 export function isDiscInSnapRange(
   transportOpen: boolean,
@@ -39,6 +67,8 @@ export function isDiscInSnapRange(
 export class InteractionRuntime {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
+  private readonly socketProjected = new THREE.Vector3();
+  private readonly assistedTarget = new THREE.Vector3();
   private readonly targetByObject = new Map<THREE.Object3D, { action: Action; discId: number | null }>();
   private readonly targets: THREE.Object3D[] = [];
   private readonly snapMarker: THREE.Mesh;
@@ -96,8 +126,15 @@ export class InteractionRuntime {
 
   update(deltaSeconds: number): void {
     if (!this.drag) return;
-    this.physicsRuntime.driveDiscGrab(this.drag.targetWorld, deltaSeconds);
-    this.updateSnapPreview();
+    const attraction = this.getSocketAttraction();
+    this.assistedTarget.copy(this.drag.targetWorld);
+    if (attraction > 0) {
+      const socketPosition = this.bindings.discSocket.getWorldPosition(new THREE.Vector3());
+      socketPosition.y += 0.035;
+      this.assistedTarget.lerp(socketPosition, attraction * 0.9);
+    }
+    this.physicsRuntime.driveDiscGrab(this.assistedTarget, deltaSeconds);
+    this.updateSnapPreview(attraction);
   }
 
   private register(root: THREE.Object3D, action: Action, discId: number | null = null): void {
@@ -114,22 +151,78 @@ export class InteractionRuntime {
     this.raycaster.setFromCamera(this.pointer, this.camera);
   }
 
-  private pick(): PickResult | null {
-    const hit = this.raycaster.intersectObjects(this.targets, true)[0];
-    if (!hit) return null;
+  private pick(debugEvent?: PointerEvent): PickResult | null {
+    const state = this.store.getState();
+    const hits = this.raycaster.intersectObjects(this.targets, true);
+    const debugRows: PickDebugRow[] = [];
+    let result: PickResult | null = null;
+    for (const hit of hits) {
+      let object: THREE.Object3D | null = hit.object;
+      let target: { action: Action; discId: number | null } | undefined;
+      while (object) {
+        target = this.targetByObject.get(object);
+        if (target) break;
+        object = object.parent;
+      }
+      if (!target) {
+        debugRows.push(this.debugRow(hit, null, 'skipped', 'no registered action'));
+        continue;
+      }
+      if (target.action === 'disc' && target.discId !== null) {
+        const disc = state.discs.find((item) => item.id === target.discId);
+        if (!disc || !isDiscPickable(disc.location, state.transport)) {
+          debugRows.push(this.debugRow(
+            hit,
+            target,
+            'skipped',
+            disc ? `disc is ${disc.location}; lid is ${state.transport}` : 'disc is missing from store',
+          ));
+          continue;
+        }
+      }
+      result = { ...target, point: hit.point.clone() };
+      debugRows.push(this.debugRow(hit, target, 'accepted', 'first usable hit'));
+      break;
+    }
+    if (debugEvent) {
+      console.groupCollapsed(
+        `[Input debug] 3D pointerdown @ ${Math.round(debugEvent.clientX)}, ${Math.round(debugEvent.clientY)}`,
+      );
+      console.log('NDC', { x: this.pointer.x, y: this.pointer.y });
+      console.log('Selected', result ? { action: result.action, discId: result.discId, point: result.point.toArray() } : null);
+      console.table(debugRows);
+      console.groupEnd();
+    }
+    return result;
+  }
+
+  private debugRow(
+    hit: THREE.Intersection,
+    target: { action: Action; discId: number | null } | null,
+    result: 'accepted' | 'skipped',
+    reason: string,
+  ): PickDebugRow {
+    const path: string[] = [];
     let object: THREE.Object3D | null = hit.object;
-    while (object) {
-      const target = this.targetByObject.get(object);
-      if (target) return { ...target, point: hit.point.clone() };
+    while (object && path.length < 6) {
+      path.push(object.name || object.type);
       object = object.parent;
     }
-    return null;
+    return {
+      mesh: hit.object.name || hit.object.type,
+      path: path.join(' < '),
+      distance: Number(hit.distance.toFixed(4)),
+      action: target?.action ?? '-',
+      discId: target?.discId ?? '-',
+      result,
+      reason,
+    };
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
     this.setPointer(event);
-    const pick = this.pick();
+    const pick = this.pick(event);
     const action = pick?.action ?? null;
     if (action === 'disc') {
       if (pick?.discId !== null && pick?.discId !== undefined) {
@@ -150,10 +243,14 @@ export class InteractionRuntime {
       this.store.dispatch({ type: 'POWER_PRESSED' });
     } else if (action === 'volume-up') {
       this.sceneRuntime.pulseButton(this.bindings.volumeUpButton);
-      this.store.dispatch({ type: 'VOLUME_CHANGED', delta: 1 });
+      this.store.dispatch(this.store.getState().power === 'on'
+        ? { type: 'VOLUME_CHANGED', delta: 1 }
+        : { type: 'VOLUME_BUTTON_PRESSED' });
     } else if (action === 'volume-down') {
       this.sceneRuntime.pulseButton(this.bindings.volumeDownButton);
-      this.store.dispatch({ type: 'VOLUME_CHANGED', delta: -1 });
+      this.store.dispatch(this.store.getState().power === 'on'
+        ? { type: 'VOLUME_CHANGED', delta: -1 }
+        : { type: 'VOLUME_BUTTON_PRESSED' });
     } else if (action === 'source-select') {
       this.store.dispatch({ type: 'SOURCE_SELECT_PRESSED' });
     } else if (action === 'play-pause') {
@@ -172,19 +269,26 @@ export class InteractionRuntime {
   private beginDrag(event: PointerEvent, discId: number, grabPoint: THREE.Vector3): void {
     const state = this.store.getState();
     const disc = state.discs.find((item) => item.id === discId);
-    const canRemoveFromPlayer = disc?.location === 'player' && state.transport === 'open';
-    if (!disc || (disc.location !== 'table' && !canRemoveFromPlayer)) return;
+    if (!disc || !isDiscPickable(disc.location, state.transport)) return;
+    const removingFromPlayer = disc.location === 'player';
+    const socketPosition = removingFromPlayer
+      ? this.bindings.discSocket.getWorldPosition(new THREE.Vector3())
+      : null;
+    const minimumWorldY = socketPosition ? socketPosition.y + DISC_REMOVAL_LIFT : null;
     const planeNormal = this.camera.getWorldDirection(new THREE.Vector3());
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, grabPoint);
     const hit = this.raycaster.ray.intersectPlane(plane, new THREE.Vector3());
     if (!hit) return;
     this.drag = {
       discId,
+      minimumWorldY,
       pointerId: event.pointerId,
       plane,
       offset: grabPoint.clone().sub(hit),
+      socketAssistArmed: !removingFromPlayer,
       targetWorld: grabPoint.clone(),
     };
+    if (minimumWorldY !== null) this.drag.targetWorld.y = Math.max(this.drag.targetWorld.y, minimumWorldY);
     this.store.dispatch({ type: 'DISC_DRAG_STARTED', discId });
     if (this.store.getState().draggedDiscId !== discId) {
       this.drag = null;
@@ -208,6 +312,14 @@ export class InteractionRuntime {
     const hit = this.raycaster.ray.intersectPlane(this.drag.plane, new THREE.Vector3());
     if (!hit) return;
     this.drag.targetWorld.copy(hit.add(this.drag.offset));
+    if (this.drag.minimumWorldY !== null) {
+      this.drag.targetWorld.y = Math.max(this.drag.targetWorld.y, this.drag.minimumWorldY);
+    }
+    if (!this.drag.socketAssistArmed) {
+      this.bindings.discSocket.getWorldPosition(this.socketProjected).project(this.camera);
+      const distance = this.pointer.distanceTo(new THREE.Vector2(this.socketProjected.x, this.socketProjected.y));
+      if (distance > SOCKET_CURSOR_RADIUS * 1.3) this.drag.socketAssistArmed = true;
+    }
     this.canvas.style.cursor = 'grabbing';
   };
 
@@ -221,7 +333,7 @@ export class InteractionRuntime {
       return;
     }
     if (event.pointerId !== this.drag.pointerId) return;
-    this.updateSnapPreview();
+    this.updateSnapPreview(this.getSocketAttraction());
     const shouldSnap = this.store.getState().snapPreview;
     if (shouldSnap) {
       const socketPosition = this.bindings.discSocket.getWorldPosition(new THREE.Vector3());
@@ -259,11 +371,23 @@ export class InteractionRuntime {
     this.cameraRuntime.setEnabled(true);
   }
 
-  private updateSnapPreview(): void {
+  private getSocketAttraction(): number {
+    if (!this.drag?.socketAssistArmed) return 0;
+    const state = this.store.getState();
+    if (state.transport !== 'open' || state.insertedDiscId !== null) return 0;
+    this.bindings.discSocket.getWorldPosition(this.socketProjected).project(this.camera);
+    if (this.socketProjected.z < -1 || this.socketProjected.z > 1) return 0;
+    return socketAttractionStrength(
+      this.pointer,
+      new THREE.Vector2(this.socketProjected.x, this.socketProjected.y),
+    );
+  }
+
+  private updateSnapPreview(attraction = 0): void {
     if (!this.drag) return;
     const discPosition = this.physicsRuntime.getDiscWorldPosition(this.drag.discId);
     const socketPosition = this.bindings.discSocket.getWorldPosition(new THREE.Vector3());
-    const inSnapRange = isDiscInSnapRange(
+    const inSnapRange = attraction > 0.18 || isDiscInSnapRange(
       this.store.getState().transport === 'open' && this.store.getState().insertedDiscId === null,
       discPosition,
       socketPosition,

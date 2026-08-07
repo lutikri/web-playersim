@@ -9,21 +9,65 @@
   <body>
     <div id="app">
       <canvas id="scene" aria-label="Interactive Technics CD receiver"></canvas>
-      <div id="loading" role="status">
+      <div id="loading" role="status" aria-live="polite">
         <div class="loading-content">
-          <span id="loading-label">LOADING SCENE</span>
-          <div class="loading-track" aria-hidden="true"><div id="loading-progress"></div></div>
+          <p class="loading-brand">KERNWERK DIGITAL EXPERIENCE</p>
+          <div id="loading-state">
+            <p id="loading-label">LOADING SCENE</p>
+            <div class="loading-track" aria-hidden="true"><div id="loading-progress"></div></div>
+            <output id="loading-percentage">0%</output>
+          </div>
+          <div id="loading-ready" aria-hidden="true">
+            <h1>Interactive Hi-Fi Product Study</h1>
+            <p>A fictional compact stereo system explored in real time.</p>
+            <div class="loading-ready-line" aria-hidden="true"></div>
+            <button id="begin-experience" type="button">BEGIN</button>
+            <small>Stereo playback recommended</small>
+          </div>
         </div>
       </div>
       <div id="camera-navigation" aria-label="Camera navigation">
         <div id="camera-hotspots"></div>
         <button id="camera-back" type="button" aria-label="Back to overview">BACK</button>
       </div>
-      <div id="reticle" aria-hidden="true"></div>
-      <div id="status" aria-live="polite"></div>
+      <div id="tutorial" aria-live="polite" aria-hidden="true">
+        <div id="tutorial-highlight" aria-hidden="true"></div>
+        <div class="tutorial-subtitle">
+          <span id="tutorial-step"></span>
+          <p id="tutorial-message"></p>
+          <button id="tutorial-skip" type="button">SKIP</button>
+        </div>
+      </div>
+      <div id="product-cards" aria-live="polite"></div>
+      <div id="track-drop-overlay" aria-hidden="true">
+        <div class="track-drop-copy">
+          <strong>DROP TRACKS TO CREATE A DISC</strong>
+          <span>FLAC / WAV / MP3</span>
+        </div>
+      </div>
+      <button id="info-toggle" type="button" aria-label="About this experience" aria-expanded="false" title="Information">i</button>
+      <aside id="info-panel" aria-hidden="true" aria-label="Experience information">
+        <div class="info-heading">
+          <h2>INFO</h2>
+          <button id="info-close" type="button">CLOSE</button>
+        </div>
+        <p class="info-intro">Interactive 3D product demo of a compact<br />audio system by Artem Lut.</p>
+        <p class="info-tech">THREE.JS / WEB AUDIO / TYPESCRIPT</p>
+        <nav class="info-links" aria-label="Artem Lut profiles">
+          <a href="https://www.linkedin.com/in/artemlut/" target="_blank" rel="noreferrer">LINKEDIN</a>
+          <a href="https://www.behance.net/artem_lut" target="_blank" rel="noreferrer">BEHANCE</a>
+          <a href="https://github.com/lutikri" target="_blank" rel="noreferrer">GITHUB</a>
+        </nav>
+        <section class="info-music">
+          <h3>MUSIC</h3>
+          <p><a href="https://pixabay.com/music/traditional-jazz-smoked-glass-keys-piano-dark-jazz-504005/" target="_blank" rel="noreferrer">Surprising_Media<br />&ldquo;Smoked Glass Keys (piano dark jazz)&rdquo;</a><br /><span>Pixabay Content License</span></p>
+          <p><a href="https://creatorchords.com/music/circuits/" target="_blank" rel="noreferrer">Alexander Nakarada<br />&ldquo;Circuits&rdquo;</a><br /><span>CC BY 4.0</span></p>
+        </section>
+        <p class="info-disclaimer">Independent product concept.<br />Not affiliated with Technics, ELAC,<br />or their respective owners.</p>
+      </aside>
+      <div id="cursor-ring" aria-hidden="true"></div>
       <button id="load-track" type="button" disabled>LOAD TRACK</button>
       <input id="track-file" type="file" accept=".flac,.wav,.mp3,audio/flac,audio/wav,audio/mpeg" multiple hidden />
-      <button id="debug-toggle" type="button" title="Toggle level editor">DEBUG</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

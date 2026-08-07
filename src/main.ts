@@ -1,18 +1,21 @@
 import * as THREE from 'three';
 import { Store } from './app/Store';
-import { TrackRuntime } from './audio/TrackRuntime';
+import { isSupportedTrackFile, TrackRuntime } from './audio/TrackRuntime';
 import { PlayerFoleyRuntime } from './audio/PlayerFoleyRuntime';
 import levelConfigJson from './config/level-config.json';
 import { applyLevelConfig, type LevelConfig } from './config/LevelConfigRuntime';
 import { DebugPanel } from './debug/DebugPanel';
 import { InteractionRuntime } from './interaction/InteractionRuntime';
+import { CursorRuntime } from './interaction/CursorRuntime';
 import { PostProcessingRuntime } from './postprocessing/PostProcessingRuntime';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { CameraRuntime } from './scene/CameraRuntime';
 import { CameraNavigationRuntime } from './scene/CameraNavigationRuntime';
+import { ProductCardRuntime } from './scene/ProductCardRuntime';
 import { SceneRuntime } from './scene/SceneRuntime';
 import { StudioEnvironmentRuntime } from './scene/StudioEnvironmentRuntime';
 import { TextureStreamingRuntime } from './scene/TextureStreamingRuntime';
+import { TutorialRuntime } from './scene/TutorialRuntime';
 import './styles/main.css';
 
 function requireElement<T extends Element>(selector: string): T {
@@ -25,13 +28,25 @@ const canvas = requireElement<HTMLCanvasElement>('#scene');
 const loading = requireElement<HTMLElement>('#loading');
 const loadingLabel = requireElement<HTMLElement>('#loading-label');
 const loadingProgress = requireElement<HTMLElement>('#loading-progress');
-const status = requireElement<HTMLElement>('#status');
-const debugToggle = requireElement<HTMLButtonElement>('#debug-toggle');
+const loadingPercentage = requireElement<HTMLOutputElement>('#loading-percentage');
+const loadingReady = requireElement<HTMLElement>('#loading-ready');
+const beginExperience = requireElement<HTMLButtonElement>('#begin-experience');
 const loadTrackButton = requireElement<HTMLButtonElement>('#load-track');
 const trackFileInput = requireElement<HTMLInputElement>('#track-file');
 const cameraNavigationRoot = requireElement<HTMLElement>('#camera-navigation');
 const cameraHotspots = requireElement<HTMLElement>('#camera-hotspots');
 const cameraBack = requireElement<HTMLButtonElement>('#camera-back');
+const productCardsRoot = requireElement<HTMLElement>('#product-cards');
+const cursorRing = requireElement<HTMLElement>('#cursor-ring');
+const tutorialRoot = requireElement<HTMLElement>('#tutorial');
+const tutorialHighlight = requireElement<HTMLElement>('#tutorial-highlight');
+const tutorialStep = requireElement<HTMLElement>('#tutorial-step');
+const tutorialMessage = requireElement<HTMLElement>('#tutorial-message');
+const tutorialSkip = requireElement<HTMLButtonElement>('#tutorial-skip');
+const trackDropOverlay = requireElement<HTMLElement>('#track-drop-overlay');
+const infoToggle = requireElement<HTMLButtonElement>('#info-toggle');
+const infoPanel = requireElement<HTMLElement>('#info-panel');
+const infoClose = requireElement<HTMLButtonElement>('#info-close');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -65,6 +80,7 @@ const store = new Store();
 const textureStreaming = new TextureStreamingRuntime(renderer);
 const sceneRuntime = new SceneRuntime(scene, store, studioEnvironment, textureStreaming);
 const cameraRuntime = new CameraRuntime(camera, canvas);
+const cursorRuntime = new CursorRuntime(cursorRing);
 const levelConfig = levelConfigJson as unknown as LevelConfig;
 const postProcessing = new PostProcessingRuntime(renderer, scene, camera, levelConfig.postProcessing);
 let interactionRuntime: InteractionRuntime | null = null;
@@ -73,31 +89,150 @@ let trackRuntime: TrackRuntime | null = null;
 let playerFoleyRuntime: PlayerFoleyRuntime | null = null;
 let debugPanel: DebugPanel | null = null;
 let cameraNavigation: CameraNavigationRuntime | null = null;
+let productCardRuntime: ProductCardRuntime | null = null;
+let tutorialRuntime: TutorialRuntime | null = null;
+let debugVisible = false;
+let dragDepth = 0;
 let disposed = false;
 let shadowBurstSeconds = 1;
 let idleShadowElapsed = 0;
 
-function updateStatus(): void {
-  const state = store.getState();
-  const power = state.power === 'starting' ? 'STARTING' : state.power.toUpperCase();
-  const disc = state.insertedDiscId !== null
-    ? `CD ${state.insertedDiscId} LOADED`
-    : state.draggedDiscId !== null ? `MOVING CD ${state.draggedDiscId}` : `${state.discs.length} CD${state.discs.length === 1 ? '' : 'S'}`;
-  const track = state.tracks[state.currentTrackIndex]?.title ?? 'NO TRACK';
-  status.textContent = `${power}  /  ${state.selectedSource.toUpperCase()}  /  ${state.transport.toUpperCase()}  /  VOL ${String(state.volume).padStart(2, '0')}  /  ${disc}  /  ${track}`;
+const logPointerTarget = (event: PointerEvent): void => {
+  const target = event.target instanceof Element ? event.target : null;
+  const topElement = document.elementFromPoint(event.clientX, event.clientY);
+  console.info('[Input debug] DOM pointerdown', {
+    target: target ? `${target.tagName.toLowerCase()}${target.id ? `#${target.id}` : ''}${target.className ? `.${String(target.className).trim().replace(/\s+/g, '.')}` : ''}` : null,
+    topElement: topElement ? `${topElement.tagName.toLowerCase()}${topElement.id ? `#${topElement.id}` : ''}${topElement.className ? `.${String(topElement.className).trim().replace(/\s+/g, '.')}` : ''}` : null,
+    client: [event.clientX, event.clientY],
+  });
+};
+
+window.addEventListener('pointerdown', logPointerTarget, { capture: true });
+
+function setLoadingProgress(progress: number): void {
+  const percentage = Math.round(THREE.MathUtils.clamp(progress, 0, 1) * 100);
+  loadingProgress.style.width = `${percentage}%`;
+  loadingPercentage.textContent = `${percentage}%`;
 }
 
-store.subscribe(updateStatus);
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function enterExperience(): void {
+  if (!loading.classList.contains('is-ready') || loading.classList.contains('is-entering')) return;
+  beginExperience.disabled = true;
+  cameraNavigation?.playIntro();
+  tutorialRuntime?.start();
+  loading.classList.add('is-entering');
+  window.setTimeout(() => {
+    loading.classList.add('is-hidden');
+    loading.setAttribute('aria-hidden', 'true');
+  }, 1_050);
+}
+
+function setDebugMode(enabled: boolean): boolean {
+  debugVisible = debugPanel?.setVisible(enabled) ?? false;
+  cameraNavigation?.setDebugMode(debugVisible);
+  productCardRuntime?.setDebugMode(debugVisible);
+  return debugVisible;
+}
+
+function setInfoVisible(visible: boolean): void {
+  infoPanel.classList.toggle('is-visible', visible);
+  infoPanel.setAttribute('aria-hidden', String(!visible));
+  infoToggle.setAttribute('aria-expanded', String(visible));
+}
+
+function isFileDrag(event: DragEvent): boolean {
+  return [...(event.dataTransfer?.types ?? [])].includes('Files');
+}
+
+function setDropOverlayVisible(visible: boolean): void {
+  trackDropOverlay.classList.toggle('is-visible', visible);
+  trackDropOverlay.setAttribute('aria-hidden', String(!visible));
+}
+
+async function loadTrackFiles(files: File[]): Promise<void> {
+  const supportedFiles = files.filter(isSupportedTrackFile);
+  if (supportedFiles.length === 0 || !trackRuntime) return;
+  loadTrackButton.disabled = true;
+  loadTrackButton.textContent = 'LOADING...';
+  try {
+    await trackRuntime.loadTracks(supportedFiles);
+    loadTrackButton.textContent = 'LOAD TRACK';
+    loadTrackButton.title = `${supportedFiles.length} track${supportedFiles.length === 1 ? '' : 's'} loaded`;
+  } catch (error) {
+    loadTrackButton.textContent = 'LOAD FAILED';
+    loadTrackButton.title = error instanceof Error ? error.message : 'Track loading failed.';
+    console.error(error);
+  } finally {
+    loadTrackButton.disabled = false;
+    trackFileInput.value = '';
+  }
+}
+
+const onEscape = (event: KeyboardEvent): void => {
+  if (event.key !== 'Escape') return;
+  setInfoVisible(false);
+  if (debugVisible) setDebugMode(false);
+  cameraRuntime.goToPose('CAM_Overview', 1.2);
+};
+
+const onDragEnter = (event: DragEvent): void => {
+  if (!isFileDrag(event) || !loading.classList.contains('is-hidden')) return;
+  event.preventDefault();
+  dragDepth += 1;
+  setDropOverlayVisible(true);
+};
+
+const onDragOver = (event: DragEvent): void => {
+  if (!isFileDrag(event) || !loading.classList.contains('is-hidden')) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+};
+
+const onDragLeave = (event: DragEvent): void => {
+  if (dragDepth === 0) return;
+  event.preventDefault();
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) setDropOverlayVisible(false);
+};
+
+const onDrop = (event: DragEvent): void => {
+  const files = [...(event.dataTransfer?.files ?? [])];
+  if (files.length === 0) return;
+  event.preventDefault();
+  dragDepth = 0;
+  setDropOverlayVisible(false);
+  void loadTrackFiles(files);
+};
+
+const onDragEnd = (): void => {
+  dragDepth = 0;
+  setDropOverlayVisible(false);
+};
+
+const consoleControls = {
+  debug: (enabled = true): boolean => setDebugMode(enabled),
+};
+
+Object.defineProperty(window, 'kernwerk', {
+  configurable: true,
+  value: consoleControls,
+});
+console.info('[Kernwerk] Level editor: kernwerk.debug() / kernwerk.debug(false)');
+
 store.subscribe(() => {
   shadowBurstSeconds = 1;
 });
-updateStatus();
 
 async function start(): Promise<void> {
   try {
     const bindings = await sceneRuntime.load((progress) => {
-      loadingProgress.style.width = `${Math.round(progress * 100)}%`;
+      setLoadingProgress(progress * 0.78);
     });
+    setLoadingProgress(0.8);
     applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment, textureStreaming });
     sceneRuntime.refreshPresentation();
     physicsRuntime = await PhysicsRuntime.create(bindings);
@@ -118,6 +253,8 @@ async function start(): Promise<void> {
       sceneRuntime,
       (id, root) => interactionRuntime?.registerDisc(id, root),
     );
+    await trackRuntime.loadBundledDiscs();
+    setLoadingProgress(0.87);
     playerFoleyRuntime = new PlayerFoleyRuntime(store, bindings, trackRuntime);
     debugPanel = new DebugPanel(
       scene,
@@ -139,18 +276,37 @@ async function start(): Promise<void> {
       cameraHotspots,
       cameraBack,
     );
-    debugToggle.addEventListener('click', () => {
-      const visible = debugPanel?.toggle() ?? false;
-      debugToggle.setAttribute('aria-pressed', String(visible));
-      cameraNavigation?.setDebugMode(visible);
-    });
+    productCardRuntime = new ProductCardRuntime(
+      camera,
+      cameraRuntime,
+      sceneRuntime.productCardAnchors,
+      productCardsRoot,
+    );
+    tutorialRuntime = new TutorialRuntime(
+      camera,
+      cameraRuntime,
+      bindings,
+      store,
+      tutorialRoot,
+      tutorialHighlight,
+      tutorialStep,
+      tutorialMessage,
+      tutorialSkip,
+      loadTrackButton,
+    );
     loadTrackButton.disabled = false;
     textureStreaming.startDeferredUpgrades();
-    loadingProgress.style.width = '100%';
-    loading.classList.add('is-hidden');
-    if (cameraNavigation.isGuided) {
-      window.setTimeout(() => cameraNavigation?.playIntro(), 650);
-    } else {
+    await Promise.all([
+      textureStreaming.prewarmMediumTier((progress) => setLoadingProgress(0.88 + progress * 0.11)),
+      delay(900),
+    ]);
+    setLoadingProgress(1);
+    loading.classList.add('is-ready');
+    loadingReady.setAttribute('aria-hidden', 'false');
+    loading.setAttribute('role', 'dialog');
+    loading.setAttribute('aria-label', 'Begin Kernwerk digital experience');
+    beginExperience.focus({ preventScroll: true });
+    if (!cameraNavigation.isGuided) {
       console.warn('[Camera navigation] CAM_Start and CAM_Overview were not found in Scene0.glb. Free camera fallback is active.');
     }
   } catch (error) {
@@ -171,8 +327,12 @@ renderer.setAnimationLoop(() => {
     || refreshIdleShadow
     || (physicsRuntime?.needsShadowUpdate() ?? false);
   textureStreaming.update(deltaSeconds);
+  cursorRuntime.update(deltaSeconds);
+  postProcessing.setAutofocusPoint(cursorRuntime.ndc);
   cameraRuntime.update(deltaSeconds);
   cameraNavigation?.update();
+  tutorialRuntime?.update();
+  productCardRuntime?.update();
   trackRuntime?.update(deltaSeconds);
   interactionRuntime?.update(deltaSeconds);
   physicsRuntime?.update(deltaSeconds);
@@ -190,6 +350,13 @@ function resize(): void {
 function dispose(): void {
   if (disposed) return;
   disposed = true;
+  window.removeEventListener('pointerdown', logPointerTarget, { capture: true });
+  window.removeEventListener('keydown', onEscape);
+  window.removeEventListener('dragenter', onDragEnter);
+  window.removeEventListener('dragover', onDragOver);
+  window.removeEventListener('dragleave', onDragLeave);
+  window.removeEventListener('drop', onDrop);
+  window.removeEventListener('dragend', onDragEnd);
   renderer.setAnimationLoop(null);
   interactionRuntime?.dispose();
   playerFoleyRuntime?.dispose();
@@ -197,7 +364,10 @@ function dispose(): void {
   trackRuntime?.dispose();
   debugPanel?.dispose();
   cameraNavigation?.dispose();
+  productCardRuntime?.dispose();
+  tutorialRuntime?.dispose();
   cameraRuntime.dispose();
+  cursorRuntime.dispose();
   sceneRuntime.dispose();
   textureStreaming.dispose();
   studioEnvironment.dispose();
@@ -207,23 +377,18 @@ function dispose(): void {
 
 window.addEventListener('resize', resize);
 window.addEventListener('beforeunload', dispose, { once: true });
+window.addEventListener('keydown', onEscape);
+window.addEventListener('dragenter', onDragEnter);
+window.addEventListener('dragover', onDragOver);
+window.addEventListener('dragleave', onDragLeave);
+window.addEventListener('drop', onDrop);
+window.addEventListener('dragend', onDragEnd);
 loadTrackButton.addEventListener('click', () => trackFileInput.click());
-trackFileInput.addEventListener('change', async () => {
+beginExperience.addEventListener('click', enterExperience);
+infoToggle.addEventListener('click', () => setInfoVisible(!infoPanel.classList.contains('is-visible')));
+infoClose.addEventListener('click', () => setInfoVisible(false));
+trackFileInput.addEventListener('change', () => {
   const files = [...(trackFileInput.files ?? [])];
-  if (files.length === 0 || !trackRuntime) return;
-  loadTrackButton.disabled = true;
-  loadTrackButton.textContent = 'LOADING...';
-  try {
-    await trackRuntime.loadTracks(files);
-    loadTrackButton.textContent = 'LOAD TRACK';
-    loadTrackButton.title = `${files.length} track${files.length === 1 ? '' : 's'} loaded`;
-  } catch (error) {
-    loadTrackButton.textContent = 'LOAD FAILED';
-    loadTrackButton.title = error instanceof Error ? error.message : 'Track loading failed.';
-    console.error(error);
-  } finally {
-    loadTrackButton.disabled = false;
-    trackFileInput.value = '';
-  }
+  if (files.length > 0) void loadTrackFiles(files);
 });
 void start();

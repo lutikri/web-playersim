@@ -37,11 +37,21 @@ button {
   place-items: center;
   padding: 32px;
   z-index: 1000;
-  background: #242826;
-  color: #d9ded9;
-  font-size: 11px;
+  background: #1b1e1d;
+  box-shadow: inset 0 0 22vw rgb(0 0 0 / 42%);
+  color: #e5e9e5;
   letter-spacing: 0;
-  transition: opacity 600ms ease, visibility 600ms ease;
+  transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms, visibility 1.02s linear;
+  animation: loading-ambient 5s ease-in-out infinite alternate;
+}
+
+#loading::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.75'/%3E%3C/svg%3E");
 }
 
 #loading.is-hidden {
@@ -49,19 +59,50 @@ button {
   opacity: 0;
 }
 
+#loading.is-entering .loading-content {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+#loading.is-entering,
+#loading.is-hidden {
+  pointer-events: none;
+}
+
 #loading.is-error {
   color: #ff7b72;
 }
 
 .loading-content {
-  width: min(220px, 62vw);
+  position: relative;
+  width: min(440px, calc(100vw - 40px));
+  min-height: 250px;
   display: grid;
-  gap: 12px;
+  align-content: center;
+  padding: 34px 36px 32px;
+  border: 1px solid rgb(229 236 232 / 15%);
+  border-radius: 4px;
+  background: rgb(5 7 7 / 68%);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 30%), inset 0 1px rgb(255 255 255 / 5%);
+  backdrop-filter: blur(18px) saturate(108%);
+  transition: min-height 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 360ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.loading-brand {
+  position: absolute;
+  top: 34px;
+  left: 36px;
+  margin: 0;
+  color: rgb(241 244 241 / 92%);
+  font: 600 11px/1.2 Inter, "Segoe UI", sans-serif;
+  text-transform: uppercase;
 }
 
 #loading-label {
-  font: 500 10px/1 "Segoe UI", sans-serif;
-  text-align: center;
+  margin: 0 0 14px;
+  color: rgb(222 227 223 / 68%);
+  font: 500 10px/1 Inter, "Segoe UI", sans-serif;
+  text-transform: uppercase;
 }
 
 .loading-track {
@@ -78,11 +119,561 @@ button {
   transition: width 240ms ease;
 }
 
+#loading-percentage {
+  display: block;
+  margin-top: 11px;
+  color: rgb(238 241 238 / 84%);
+  font: 500 11px/1 "SFMono-Regular", Consolas, monospace;
+}
+
+#loading-state {
+  opacity: 1;
+  transition: opacity 280ms ease;
+}
+
+#loading-ready {
+  position: absolute;
+  inset: 88px 36px 32px;
+  display: grid;
+  align-content: start;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: opacity 500ms ease 160ms, transform 650ms cubic-bezier(0.22, 1, 0.36, 1) 120ms, visibility 0s linear 650ms;
+}
+
+#loading-ready h1 {
+  max-width: 320px;
+  margin: 0;
+  color: rgb(244 246 243 / 96%);
+  font: 500 20px/1.2 Inter, "Segoe UI", sans-serif;
+}
+
+#loading-ready > p {
+  max-width: 340px;
+  margin: 11px 0 0;
+  color: rgb(220 225 221 / 58%);
+  font: 400 12px/1.5 Inter, "Segoe UI", sans-serif;
+}
+
+.loading-ready-line {
+  width: 74px;
+  height: 1px;
+  margin-top: 24px;
+  background: rgb(240 243 239 / 62%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms;
+}
+
+#begin-experience {
+  justify-self: start;
+  margin-top: 20px;
+  padding: 9px 18px;
+  border: 1px solid rgb(232 237 233 / 26%);
+  border-radius: 3px;
+  background: rgb(255 255 255 / 3%);
+  color: rgb(242 245 242 / 92%);
+  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, opacity 240ms ease;
+}
+
+#begin-experience:hover,
+#begin-experience:focus-visible {
+  border-color: rgb(239 243 239 / 58%);
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+  outline: none;
+}
+
+#loading-ready small {
+  margin-top: 18px;
+  color: rgb(215 221 216 / 42%);
+  font: 500 9px/1.3 Inter, "Segoe UI", sans-serif;
+}
+
+#loading.is-ready #loading-state {
+  opacity: 0;
+  visibility: hidden;
+}
+
+#loading.is-ready .loading-content {
+  min-height: 355px;
+}
+
+#loading.is-ready #loading-ready {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 160ms, 120ms, 0s;
+}
+
+#loading.is-hidden #loading-ready {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#loading.is-ready .loading-ready-line {
+  transform: scaleX(1);
+}
+
+#loading.is-entering #begin-experience {
+  opacity: 0;
+}
+
+@keyframes loading-ambient {
+  from { filter: brightness(0.96); }
+  to { filter: brightness(1.025); }
+}
+
+@media (max-width: 520px) {
+  .loading-content {
+    min-height: 270px;
+    padding: 28px 26px;
+  }
+
+  .loading-brand {
+    top: 28px;
+    left: 26px;
+  }
+
+  #loading-ready {
+    inset: 80px 26px 28px;
+  }
+
+
+  #loading.is-ready .loading-content {
+    min-height: 370px;
+  }
+}
+
 #camera-navigation,
 #camera-hotspots {
   position: fixed;
   inset: 0;
   pointer-events: none;
+}
+
+#tutorial {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease, visibility 320ms ease;
+}
+
+#tutorial.is-visible {
+  visibility: visible;
+  opacity: 1;
+}
+
+#tutorial-highlight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  border: 1px solid rgb(248 250 247 / 84%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px rgb(247 250 247 / 7%), 0 0 28px rgb(240 246 241 / 16%);
+  opacity: 0;
+  pointer-events: none;
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
+  will-change: transform, width, height;
+}
+
+#tutorial-highlight::after {
+  position: absolute;
+  inset: -7px;
+  content: '';
+  border: 1px solid rgb(244 248 244 / 18%);
+  border-radius: inherit;
+  animation: tutorial-pulse 1.9s ease-in-out infinite;
+}
+
+#tutorial-highlight.is-visible {
+  opacity: 1;
+}
+
+.tutorial-subtitle {
+  position: absolute;
+  bottom: 66px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  width: min(560px, calc(100vw - 36px));
+  min-height: 42px;
+  padding: 10px 12px 10px 14px;
+  transform: translateX(-50%);
+  border-top: 1px solid rgb(239 244 240 / 18%);
+  border-bottom: 1px solid rgb(239 244 240 / 10%);
+  background: rgb(5 7 6 / 64%);
+  box-shadow: 0 12px 38px rgb(0 0 0 / 18%);
+  backdrop-filter: blur(16px) saturate(108%);
+  pointer-events: auto;
+}
+
+#tutorial-step {
+  min-width: 48px;
+  color: rgb(222 228 223 / 38%);
+  font: 500 9px/1 "SFMono-Regular", Consolas, monospace;
+}
+
+#tutorial-message {
+  margin: 0;
+  color: rgb(242 245 242 / 88%);
+  font: 500 11px/1.35 Inter, "Segoe UI", sans-serif;
+  text-align: center;
+}
+
+#tutorial-skip {
+  min-width: 48px;
+  padding: 7px 4px;
+  border: 0;
+  background: transparent;
+  color: rgb(219 225 220 / 38%);
+  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+#tutorial-skip:hover {
+  color: rgb(249 250 248 / 88%);
+}
+
+#tutorial.is-complete .tutorial-subtitle {
+  border-color: rgb(239 244 240 / 22%);
+}
+
+#load-track.is-tutorial-target {
+  border-color: rgb(245 248 245 / 64%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 0 0 5px rgb(247 250 247 / 7%), 0 8px 28px rgb(0 0 0 / 22%);
+  color: rgb(255 255 255 / 96%);
+  animation: tutorial-button-pulse 1.9s ease-in-out infinite;
+}
+
+@keyframes tutorial-pulse {
+  0%, 100% { opacity: 0.28; transform: scale(0.94); }
+  50% { opacity: 0.76; transform: scale(1.06); }
+}
+
+@keyframes tutorial-button-pulse {
+  0%, 100% { border-color: rgb(245 248 245 / 36%); }
+  50% { border-color: rgb(245 248 245 / 76%); }
+}
+
+#product-cards {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#product-cards.is-debug {
+  display: none;
+}
+
+#track-drop-overlay {
+  position: fixed;
+  inset: 16px;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(244 248 244 / 54%);
+  border-radius: 4px;
+  background: rgb(4 6 5 / 62%);
+  box-shadow: inset 0 0 80px rgb(0 0 0 / 28%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  backdrop-filter: blur(8px) saturate(92%);
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+#track-drop-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.track-drop-copy {
+  display: grid;
+  gap: 12px;
+  text-align: center;
+}
+
+.track-drop-copy strong {
+  color: rgb(246 248 245 / 92%);
+  font: 600 12px/1 Inter, "Segoe UI", sans-serif;
+}
+
+.track-drop-copy span {
+  color: rgb(218 224 219 / 44%);
+  font: 500 9px/1 "SFMono-Regular", Consolas, monospace;
+}
+
+#info-toggle {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 72;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgb(238 243 239 / 20%);
+  border-radius: 50%;
+  background: rgb(7 9 8 / 58%);
+  color: rgb(239 243 239 / 72%);
+  font: 500 13px/1 Georgia, serif;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+#info-toggle:hover,
+#info-toggle[aria-expanded="true"] {
+  border-color: rgb(245 248 245 / 44%);
+  background: rgb(18 21 19 / 74%);
+  color: #fff;
+}
+
+#info-panel {
+  position: fixed;
+  top: 14px;
+  right: 58px;
+  z-index: 71;
+  width: min(370px, calc(100vw - 76px));
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+  padding: 25px 26px 24px;
+  transform: translateX(8px);
+  border: 1px solid rgb(229 236 232 / 16%);
+  border-radius: 4px;
+  background: rgb(5 7 7 / 78%);
+  box-shadow: 0 22px 68px rgb(0 0 0 / 34%), inset 0 1px rgb(255 255 255 / 5%);
+  color: rgb(238 242 238 / 88%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  backdrop-filter: blur(20px) saturate(108%);
+  transition: opacity 220ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 220ms ease;
+}
+
+#info-panel.is-visible {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.info-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgb(231 237 232 / 12%);
+}
+
+.info-heading h2,
+.info-music h3 {
+  margin: 0;
+  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+}
+
+#info-close {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: rgb(220 226 221 / 42%);
+  font: 600 8px/1 Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+#info-close:hover {
+  color: #fff;
+}
+
+.info-intro {
+  margin: 22px 0 0;
+  color: rgb(232 236 232 / 76%);
+  font: 400 12px/1.55 Inter, "Segoe UI", sans-serif;
+}
+
+.info-tech {
+  margin: 18px 0 0;
+  color: rgb(205 213 207 / 48%);
+  font: 600 8px/1.3 "SFMono-Regular", Consolas, monospace;
+}
+
+.info-links {
+  display: flex;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.info-links a,
+.info-music a {
+  color: rgb(241 244 241 / 78%);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.info-links a {
+  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+}
+
+.info-links a:hover,
+.info-music a:hover {
+  color: #fff;
+}
+
+.info-music {
+  margin-top: 27px;
+  padding-top: 20px;
+  border-top: 1px solid rgb(231 237 232 / 12%);
+}
+
+.info-music p {
+  margin: 17px 0 0;
+  font: 400 11px/1.5 Inter, "Segoe UI", sans-serif;
+}
+
+.info-music span {
+  color: rgb(205 213 207 / 42%);
+  font-size: 9px;
+}
+
+.info-disclaimer {
+  margin: 27px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid rgb(231 237 232 / 12%);
+  color: rgb(205 213 207 / 46%);
+  font: 400 10px/1.5 Inter, "Segoe UI", sans-serif;
+}
+
+.product-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(336px, calc(100vw - 36px));
+  padding: 24px 24px 22px;
+  border: 1px solid rgb(229 236 232 / 16%);
+  border-radius: 4px;
+  background: rgb(5 7 7 / 72%);
+  box-shadow: 0 18px 56px rgb(0 0 0 / 34%), inset 0 1px rgb(255 255 255 / 6%);
+  color: rgb(240 243 239 / 94%);
+  opacity: 0;
+  visibility: hidden;
+  backdrop-filter: blur(18px) saturate(112%);
+  transition: opacity 320ms ease, visibility 320ms ease;
+  will-change: transform;
+}
+
+.product-card__connector {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 320ms ease, visibility 320ms ease;
+}
+
+.product-card__connector.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.product-card__connector-path {
+  fill: none;
+  stroke: rgb(226 233 228 / 38%);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-card__connector-dot {
+  fill: rgb(8 10 9 / 88%);
+  stroke: rgb(239 243 240 / 72%);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-card.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.product-card__heading {
+  padding-bottom: 19px;
+  border-bottom: 1px solid rgb(229 236 232 / 12%);
+}
+
+.product-card__name {
+  margin: 0;
+  color: #f4f5f1;
+  font: 560 27px/1.05 "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+.product-card__type {
+  margin: 8px 0 0;
+  color: rgb(205 213 207 / 62%);
+  font: 600 9px/1.3 "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
+  white-space: pre-line;
+}
+
+.product-card__specs {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 17px 18px;
+  margin: 20px 0 0;
+}
+
+.product-card__spec {
+  min-width: 0;
+}
+
+.product-card__spec dd,
+.product-card__spec dt {
+  margin: 0;
+}
+
+.product-card__spec dd {
+  color: rgb(242 245 241 / 91%);
+  font: 430 15px/1.15 "Segoe UI", Arial, sans-serif;
+  white-space: nowrap;
+}
+
+.product-card__spec dt {
+  margin-top: 5px;
+  color: rgb(196 205 199 / 46%);
+  font: 500 8px/1.25 "Segoe UI", Arial, sans-serif;
+  text-transform: uppercase;
+}
+
+.product-card__description {
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid rgb(229 236 232 / 10%);
+  color: rgb(220 226 221 / 66%);
+  font: 400 12px/1.55 "Segoe UI", Arial, sans-serif;
+}
+
+.product-card--detail {
+  width: min(292px, calc(100vw - 36px));
+}
+
+.product-card--detail .product-card__name {
+  font-size: 32px;
+  font-weight: 480;
+}
+
+.product-card--detail .product-card__specs {
+  grid-template-columns: 1fr;
 }
 
 #camera-navigation.is-unavailable,
@@ -102,7 +693,20 @@ button {
   box-shadow: 0 0 0 5px rgb(255 255 255 / 8%);
   cursor: pointer;
   pointer-events: auto;
-  transition: background 160ms ease, box-shadow 160ms ease, opacity 220ms ease;
+  transition: background 160ms ease, box-shadow 160ms ease, opacity 220ms ease, transform 240ms ease;
+}
+
+.camera-hotspot.is-offscreen {
+  transform: translate(-50%, -50%) scale(0.66);
+  border-color: rgb(255 255 255 / 54%);
+  background: rgb(16 18 17 / 38%);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 5%);
+  opacity: 0.72;
+}
+
+.camera-hotspot.is-offscreen:hover {
+  transform: translate(-50%, -50%) scale(0.76);
+  opacity: 0.9;
 }
 
 .camera-hotspot::after {
@@ -120,20 +724,12 @@ button {
 
 #camera-back {
   position: fixed;
-  top: 18px;
+  top: auto;
+  bottom: 18px;
   left: 50%;
-  min-width: 64px;
-  height: 28px;
-  padding: 0 12px;
-  transform: translate(-50%, -8px);
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: 4px;
-  background: rgb(12 14 13 / 72%);
-  color: rgb(244 246 242 / 86%);
-  font-size: 9px;
+  transform: translate(-50%, 8px);
   opacity: 0;
   visibility: hidden;
-  cursor: pointer;
   pointer-events: none;
   transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
 }
@@ -145,50 +741,41 @@ button {
   pointer-events: auto;
 }
 
-#status {
+#load-track {
   position: fixed;
   right: 18px;
-  bottom: 16px;
-  max-width: calc(100vw - 36px);
-  color: rgb(231 235 230 / 72%);
-  font: 500 10px/1.4 "Segoe UI", sans-serif;
-  letter-spacing: 0;
-  pointer-events: none;
+  bottom: 18px;
+  left: auto;
+  min-width: 108px;
 }
 
-#debug-toggle {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 4px;
-  background: rgb(12 14 13 / 76%);
-  color: rgb(238 241 236 / 76%);
-  font-size: 10px;
+#camera-back,
+#load-track {
+  height: 30px;
+  padding: 0 13px;
+  border: 1px solid rgb(238 243 239 / 20%);
+  border-radius: 3px;
+  background: rgb(7 9 8 / 58%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 4%), 0 8px 24px rgb(0 0 0 / 14%);
+  color: rgb(239 243 239 / 72%);
+  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
   cursor: pointer;
+  backdrop-filter: blur(14px) saturate(108%);
 }
 
 #load-track {
-  position: fixed;
-  bottom: 14px;
-  left: 50%;
-  min-width: 108px;
-  height: 30px;
-  padding: 0 12px;
-  transform: translateX(-50%);
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: 4px;
-  background: rgb(12 14 13 / 82%);
-  color: rgb(238 241 236 / 84%);
-  font-size: 10px;
-  cursor: pointer;
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+#camera-back:hover,
+#load-track:hover:not(:disabled) {
+  border-color: rgb(245 248 245 / 42%);
+  background: rgb(18 21 19 / 72%);
+  color: rgb(255 255 255 / 96%);
 }
 
 #load-track:hover:not(:disabled) {
-  border-color: rgb(255 255 255 / 44%);
-  color: #fff;
+  transform: translateY(-1px);
 }
 
 #load-track:disabled {
@@ -196,20 +783,48 @@ button {
   opacity: 0.5;
 }
 
-#debug-toggle:hover {
-  color: #fff;
-  border-color: rgb(255 255 255 / 36%);
+#cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1200;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 68%);
+  background: rgb(12 14 13 / 10%);
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 9%);
+  opacity: 0;
+  pointer-events: none;
+  transition: width 120ms ease, height 120ms ease, opacity 160ms ease, background 120ms ease;
+  will-change: transform;
 }
 
-#reticle {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 40%);
-  pointer-events: none;
+#cursor-ring.is-visible {
+  opacity: 1;
+}
+
+#cursor-ring.is-active {
+  width: 14px;
+  height: 14px;
+  background: rgb(255 255 255 / 12%);
+}
+
+@media (pointer: fine) {
+  html,
+  body,
+  button,
+  input,
+  canvas,
+  .lil-gui {
+    cursor: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  #cursor-ring {
+    display: none;
+  }
 }
 
 .lil-gui.root {
@@ -239,17 +854,35 @@ button {
 }
 
 @media (max-width: 600px) {
-  #status {
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    max-width: none;
-    text-align: center;
-    font-size: 8px;
+  .product-card {
+    width: min(300px, calc(100vw - 28px));
+    padding: 20px;
   }
 
-  #load-track {
-    bottom: 34px;
+  .product-card__name {
+    font-size: 23px;
+  }
+
+  .tutorial-subtitle {
+    bottom: 62px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    padding-inline: 9px;
+  }
+
+  #tutorial-step,
+  #tutorial-skip {
+    min-width: 40px;
+  }
+
+  #tutorial-message {
+    font-size: 10px;
+  }
+
+  #info-panel {
+    top: 52px;
+    right: 14px;
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 66px);
   }
 
   .lil-gui.root.debug-level-panel,

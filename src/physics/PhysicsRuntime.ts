@@ -63,6 +63,10 @@ export function hasColliderForRoot(colliders: THREE.Object3D[], root: THREE.Obje
   });
 }
 
+export function isAnimatedCollider(collider: THREE.Object3D): boolean {
+  return /CDLid/i.test(collider.name);
+}
+
 export class PhysicsRuntime {
   private accumulator = 0;
   private grabConstraint: GrabConstraint | null = null;
@@ -102,7 +106,7 @@ export class PhysicsRuntime {
       );
     };
 
-    bindings.colliders.forEach((object) => {
+    bindings.colliders.filter((object) => !isAnimatedCollider(object)).forEach((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       createStaticBox(object);
     });

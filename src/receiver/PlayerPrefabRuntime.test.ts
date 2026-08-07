@@ -38,6 +38,7 @@ describe('SM_Player1 asset contract', () => {
       'SM_Button_VOLDOWN',
       'SM_CDLid',
       'CDLidRotParent1',
+      'UCX_SM_CDLid.006_01',
       'BtnScreen_Next',
       'BtnScreen_PlayPause',
       'BtnScreen_Prev',

@@ -39,6 +39,7 @@ export type AppEvent =
   | { type: 'POWER_PRESSED' }
   | { type: 'POWER_READY' }
   | { type: 'VOLUME_CHANGED'; delta: number }
+  | { type: 'VOLUME_BUTTON_PRESSED' }
   | { type: 'SOURCE_SELECT_PRESSED' }
   | { type: 'TRACKS_LOADED'; discId: number; tracks: TrackInfo[] }
   | { type: 'CD_READING_STARTED' }
@@ -85,6 +86,8 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
     case 'VOLUME_CHANGED':
       if (state.power !== 'on') return state;
       return { ...state, volume: Math.min(99, Math.max(0, state.volume + event.delta)) };
+    case 'VOLUME_BUTTON_PRESSED':
+      return { ...state };
     case 'SOURCE_SELECT_PRESSED': {
       if (state.power !== 'on') return state;
       const nextIndex = (INPUT_SOURCES.indexOf(state.selectedSource) + 1) % INPUT_SOURCES.length;

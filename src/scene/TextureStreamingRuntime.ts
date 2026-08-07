@@ -18,12 +18,12 @@ export interface TextureStreamOptions {
 }
 
 export interface HighTierCapabilities {
-  averageFps: number;
+  averageFps?: number;
   cinematic?: boolean;
-  stableSeconds: number;
+  stableSeconds?: number;
   deviceMemoryGb?: number;
   maxTextureSize: number;
-  saveData: boolean;
+  saveData?: boolean;
 }
 
 export interface TextureStreamHandle {
@@ -37,6 +37,7 @@ interface StreamRegistration {
   currentTier: 'low' | 'medium' | 'high';
   definition: TextureTierSet;
   highQueued: boolean;
+  mediumSettled: boolean;
   options: TextureStreamOptions;
   apply: (maps: TextureMaps, tier: 'low' | 'medium' | 'high') => void;
 }
@@ -48,16 +49,8 @@ interface UpgradeJob {
   tier: 'medium' | 'high';
 }
 
-const HIGH_TIER_FPS = 55;
-const HIGH_TIER_STABLE_SECONDS = 12;
-
 export function shouldAllowHighTextureTier(capabilities: HighTierCapabilities): boolean {
-  if (capabilities.maxTextureSize < 8192) return false;
-  if (capabilities.cinematic) return true;
-  return capabilities.averageFps >= HIGH_TIER_FPS
-    && capabilities.stableSeconds >= HIGH_TIER_STABLE_SECONDS
-    && (capabilities.deviceMemoryGb === undefined || capabilities.deviceMemoryGb >= 8)
-    && !capabilities.saveData;
+  return capabilities.cinematic === true && capabilities.maxTextureSize >= 8192;
 }
 
 function disposeMaps(maps: TextureMaps): void {
@@ -70,8 +63,6 @@ export class TextureStreamingRuntime {
   private readonly registrations = new Set<StreamRegistration>();
   private readonly queue: UpgradeJob[] = [];
   private activeUpgrade = false;
-  private averageFps = 60;
-  private stableHighFpsSeconds = 0;
   private deferredUpgradesEnabled = false;
   private disposed = false;
   private cinematicModeValue = false;
@@ -86,6 +77,13 @@ export class TextureStreamingRuntime {
 
   set cinematicMode(enabled: boolean) {
     this.cinematicModeValue = enabled;
+    if (enabled) return;
+    for (let index = this.queue.length - 1; index >= 0; index -= 1) {
+      const job = this.queue[index];
+      if (job?.tier !== 'high') continue;
+      job.registration.highQueued = false;
+      this.queue.splice(index, 1);
+    }
   }
 
   async stream(
@@ -101,6 +99,7 @@ export class TextureStreamingRuntime {
       currentTier: 'low',
       definition,
       highQueued: false,
+      mediumSettled: definition.medium === undefined,
       options,
     };
     this.registrations.add(registration);
@@ -120,11 +119,6 @@ export class TextureStreamingRuntime {
 
   update(deltaSeconds: number): void {
     if (this.disposed || !this.deferredUpgradesEnabled || deltaSeconds <= 0) return;
-    const frameFps = 1 / deltaSeconds;
-    this.averageFps = THREE.MathUtils.lerp(this.averageFps, frameFps, 0.025);
-    if (this.averageFps >= HIGH_TIER_FPS) this.stableHighFpsSeconds += deltaSeconds;
-    else if (this.averageFps < 50) this.stableHighFpsSeconds = 0;
-
     if (this.canUseHighTier()) {
       this.registrations.forEach((registration) => {
         if (registration.cancelled
@@ -139,9 +133,21 @@ export class TextureStreamingRuntime {
   }
 
   startDeferredUpgrades(): void {
-    this.averageFps = 60;
-    this.stableHighFpsSeconds = 0;
     this.deferredUpgradesEnabled = true;
+  }
+
+  async prewarmMediumTier(
+    onProgress?: (progress: number) => void,
+    timeoutMs = 60_000,
+  ): Promise<void> {
+    const startedAt = performance.now();
+    while (!this.disposed) {
+      const mediumStreams = [...this.registrations].filter((registration) => registration.definition.medium);
+      const completed = mediumStreams.filter((registration) => registration.mediumSettled).length;
+      onProgress?.(mediumStreams.length === 0 ? 1 : completed / mediumStreams.length);
+      if (completed === mediumStreams.length || performance.now() - startedAt >= timeoutMs) return;
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
+    }
   }
 
   dispose(): void {
@@ -186,7 +192,10 @@ export class TextureStreamingRuntime {
   private async runUpgrade(job: UpgradeJob): Promise<void> {
     try {
       const maps = await this.loadMaps(job.paths, job.registration.options, true);
-      if (this.disposed || job.registration.cancelled) {
+      if (this.disposed
+        || job.registration.cancelled
+        || (job.tier === 'high' && !this.cinematicModeValue)) {
+        if (job.tier === 'high') job.registration.highQueued = false;
         disposeMaps(maps);
         return;
       }
@@ -198,6 +207,8 @@ export class TextureStreamingRuntime {
       console.info(`[Texture streaming] ${job.registration.options.label}: ${job.tier}`);
     } catch (error) {
       console.warn(`[Texture streaming] Unable to upgrade ${job.registration.options.label} to ${job.tier}`, error);
+    } finally {
+      if (job.tier === 'medium') job.registration.mediumSettled = true;
     }
   }
 
@@ -240,17 +251,9 @@ export class TextureStreamingRuntime {
   }
 
   private canUseHighTier(): boolean {
-    const navigatorWithMemory = navigator as Navigator & {
-      connection?: { saveData?: boolean };
-      deviceMemory?: number;
-    };
     return shouldAllowHighTextureTier({
-      averageFps: this.averageFps,
       cinematic: this.cinematicModeValue,
-      stableSeconds: this.stableHighFpsSeconds,
-      deviceMemoryGb: navigatorWithMemory.deviceMemory,
       maxTextureSize: this.renderer.capabilities.maxTextureSize,
-      saveData: navigatorWithMemory.connection?.saveData === true,
     });
   }
 }

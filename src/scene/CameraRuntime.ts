@@ -19,6 +19,8 @@ interface CameraTransition {
 
 const PARALLAX_YAW = THREE.MathUtils.degToRad(2.2);
 const PARALLAX_PITCH = THREE.MathUtils.degToRad(1.35);
+const PARALLAX_POSITION_X = 0.012;
+const PARALLAX_POSITION_Y = 0.007;
 
 export function coverFov(authoredFov: number, authoredAspect: number, viewportAspect: number): number {
   if (viewportAspect <= authoredAspect || authoredAspect <= 0) return authoredFov;
@@ -47,6 +49,7 @@ export class CameraRuntime {
   private readonly parallaxCurrent = new THREE.Vector2();
   private readonly parallaxEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly parallaxQuaternion = new THREE.Quaternion();
+  private readonly parallaxPosition = new THREE.Vector3();
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -220,7 +223,12 @@ export class CameraRuntime {
       'YXZ',
     );
     this.parallaxQuaternion.setFromEuler(this.parallaxEuler);
-    this.camera.position.copy(this.guidedBasePosition);
+    this.parallaxPosition.set(
+      this.parallaxCurrent.x * PARALLAX_POSITION_X,
+      this.parallaxCurrent.y * PARALLAX_POSITION_Y,
+      0,
+    ).applyQuaternion(this.guidedBaseQuaternion);
+    this.camera.position.copy(this.guidedBasePosition).add(this.parallaxPosition);
     this.camera.quaternion.copy(this.guidedBaseQuaternion).multiply(this.parallaxQuaternion);
   }
 
