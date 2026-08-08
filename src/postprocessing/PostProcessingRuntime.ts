@@ -65,6 +65,8 @@ export interface PostProcessingSettings {
   };
 }
 
+export type QualityPreset = 'Ultra' | 'High' | 'Medium' | 'Low';
+
 export type PostProcessingOverrides = {
   [Key in keyof PostProcessingSettings]?: PostProcessingSettings[Key] extends object
     ? { [NestedKey in keyof PostProcessingSettings[Key]]?: PostProcessingSettings[Key][NestedKey] extends object
@@ -359,6 +361,7 @@ export class PostProcessingRuntime {
   private diagnosticsDrawCalls = 0;
   private diagnosticsTriangles = 0;
   private readonly drawingBufferSize = new THREE.Vector2();
+  private readonly authoredSettings: PostProcessingSettings;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -367,6 +370,7 @@ export class PostProcessingRuntime {
     overrides?: PostProcessingOverrides | null,
   ) {
     this.settings = createPostProcessingSettings(overrides);
+    this.authoredSettings = structuredClone(this.settings);
     this.autofocusDistance = this.settings.depthOfField.focus;
     this.autofocusTargetDistance = this.autofocusDistance;
     this.renderer.info.autoReset = false;
@@ -388,21 +392,34 @@ export class PostProcessingRuntime {
     this.autofocusPoint.copy(point);
   }
 
-  applyQualityPreset(preset: 'Ultra' | 'High' | 'Medium' | 'Low'): void {
+  get isAmbientOcclusionPassEnabled(): boolean {
+    return this.gtaoPass?.enabled ?? false;
+  }
+
+  get activePasses(): Record<string, boolean> {
+    return {
+      gtao: this.gtaoPass?.enabled ?? false,
+      depthOfField: this.bokehPass?.enabled ?? false,
+      bloom: this.bloomPass?.enabled ?? false,
+      flare: this.lensPass?.enabled ?? false,
+      chromaticAberration: this.chromaticAberrationPass?.enabled ?? false,
+      color: this.colorPass?.enabled ?? false,
+      smaa: this.smaaPass?.enabled ?? false,
+    };
+  }
+
+  applyQualityPreset(preset: QualityPreset): void {
+    mergeSettings(
+      this.settings as unknown as Record<string, unknown>,
+      this.authoredSettings as unknown as Record<string, unknown>,
+    );
     const { ambientOcclusion, antiAliasing, bloom, chromaticAberration, depthOfField, flare } = this.settings;
     if (preset === 'Ultra') {
-      this.settings.renderScale = 1;
-      Object.assign(antiAliasing, { method: 'msaa', msaaSamples: 4, postSmaa: true });
-      Object.assign(ambientOcclusion, { enabled: true, resolutionScale: 1, samples: 8, denoiseSamples: 4 });
-      bloom.enabled = true;
-      flare.enabled = true;
-      flare.glare.enabled = true;
-      flare.ghosts.enabled = true;
-      chromaticAberration.enabled = true;
+      // Ultra is the authored level configuration, including its exact effect values.
     } else if (preset === 'High') {
       this.settings.renderScale = 0.85;
       Object.assign(antiAliasing, { method: 'msaa', msaaSamples: 2, postSmaa: true });
-      Object.assign(ambientOcclusion, { enabled: true, resolutionScale: 0.5, samples: 8, denoiseSamples: 4 });
+      ambientOcclusion.enabled = false;
       bloom.enabled = true;
       flare.enabled = true;
       flare.glare.enabled = true;
@@ -411,12 +428,13 @@ export class PostProcessingRuntime {
     } else if (preset === 'Medium') {
       this.settings.renderScale = 0.7;
       Object.assign(antiAliasing, { method: 'off', msaaSamples: 0, postSmaa: true });
-      Object.assign(ambientOcclusion, { enabled: true, resolutionScale: 0.25, samples: 4, denoiseSamples: 2 });
-      bloom.enabled = true;
+      ambientOcclusion.enabled = false;
+      bloom.enabled = false;
       flare.enabled = false;
       chromaticAberration.enabled = false;
       depthOfField.enabled = false;
     } else {
+      this.settings.enabled = false;
       this.settings.renderScale = 0.55;
       Object.assign(antiAliasing, { method: 'off', msaaSamples: 0, postSmaa: false });
       ambientOcclusion.enabled = false;
@@ -429,6 +447,9 @@ export class PostProcessingRuntime {
   }
 
   private buildPipeline(): void {
+    // Every pass is a new instance after a quality change, so cached sync keys
+    // must not suppress applying settings to the replacement pass.
+    this.ambientOcclusionKey = '';
     const renderTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
     const requestedSamples = this.settings.antiAliasing.method === 'msaa'
       ? this.settings.antiAliasing.msaaSamples

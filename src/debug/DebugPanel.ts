@@ -6,6 +6,7 @@ import type { StudioEnvironmentRuntime } from '../scene/StudioEnvironmentRuntime
 import type { PostProcessingRuntime } from '../postprocessing/PostProcessingRuntime';
 import type { TextureStreamingRuntime } from '../scene/TextureStreamingRuntime';
 import type { LevelConfig } from '../config/LevelConfigRuntime';
+import type { AdaptivePerformanceRuntime, QualityMode } from '../performance/AdaptivePerformanceRuntime';
 import { collectSceneMaterials, serializeMaterial } from './materialEditor';
 
 type EditableLight = THREE.AmbientLight | THREE.DirectionalLight | THREE.HemisphereLight | THREE.PointLight | THREE.SpotLight;
@@ -77,6 +78,7 @@ export class DebugPanel {
     private readonly postProcessing: PostProcessingRuntime,
     private readonly textureStreaming: TextureStreamingRuntime,
     levelConfig: LevelConfig,
+    private readonly adaptivePerformance: AdaptivePerformanceRuntime,
   ) {
     this.editableObjects = [...sceneRuntime.bindings.editableObjects];
     this.materials = collectSceneMaterials(scene);
@@ -154,11 +156,12 @@ export class DebugPanel {
 
   private addPerformanceControls(level: GUI): void {
     const folder = level.addFolder('Performance');
-    const presetState = { preset: 'Current' as 'Current' | 'Ultra' | 'High' | 'Medium' | 'Low' };
-    folder.add(presetState, 'preset', ['Current', 'Ultra', 'High', 'Medium', 'Low']).name('Quality preset')
-      .onChange((preset: 'Current' | 'Ultra' | 'High' | 'Medium' | 'Low') => {
-        if (preset !== 'Current') this.postProcessing.applyQualityPreset(preset);
-      });
+    const quality = this.adaptivePerformance.status;
+    folder.add(quality, 'mode', ['Auto', 'Ultra', 'High', 'Medium', 'Low']).name('Quality mode')
+      .listen()
+      .onChange((mode: QualityMode) => this.adaptivePerformance.setMode(mode));
+    folder.add(quality, 'profile').name('Active profile').listen().disable();
+    folder.add(quality, 'measuredFps').name('Last benchmark').listen().disable();
     folder.add(this.postProcessing.settings, 'renderScale', 0.5, 1, 0.05).name('Render scale')
       .listen().onChange((scale: number) => this.postProcessing.setRenderScale(scale));
     const diagnostics = this.postProcessing.diagnostics;

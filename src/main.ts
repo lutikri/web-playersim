@@ -9,6 +9,7 @@ import { InteractionRuntime } from './interaction/InteractionRuntime';
 import { CursorRuntime } from './interaction/CursorRuntime';
 import { PostProcessingRuntime } from './postprocessing/PostProcessingRuntime';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
+import { AdaptivePerformanceRuntime, type QualityMode } from './performance/AdaptivePerformanceRuntime';
 import { CameraRuntime } from './scene/CameraRuntime';
 import { CameraNavigationRuntime } from './scene/CameraNavigationRuntime';
 import { ProductCardRuntime } from './scene/ProductCardRuntime';
@@ -16,7 +17,6 @@ import { SceneRuntime } from './scene/SceneRuntime';
 import { StudioEnvironmentRuntime } from './scene/StudioEnvironmentRuntime';
 import { TextureStreamingRuntime } from './scene/TextureStreamingRuntime';
 import { TutorialRuntime } from './scene/TutorialRuntime';
-import './styles/main.css';
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -48,13 +48,12 @@ const infoToggle = requireElement<HTMLButtonElement>('#info-toggle');
 const infoPanel = requireElement<HTMLElement>('#info-panel');
 const infoClose = requireElement<HTMLButtonElement>('#info-close');
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = false;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;
-renderer.shadowMap.needsUpdate = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.25;
@@ -91,9 +90,11 @@ let debugPanel: DebugPanel | null = null;
 let cameraNavigation: CameraNavigationRuntime | null = null;
 let productCardRuntime: ProductCardRuntime | null = null;
 let tutorialRuntime: TutorialRuntime | null = null;
+let adaptivePerformance: AdaptivePerformanceRuntime | null = null;
 let debugVisible = false;
 let dragDepth = 0;
 let disposed = false;
+let waitingForExperience = false;
 let shadowBurstSeconds = 1;
 let idleShadowElapsed = 0;
 
@@ -122,6 +123,7 @@ function delay(milliseconds: number): Promise<void> {
 function enterExperience(): void {
   if (!loading.classList.contains('is-ready') || loading.classList.contains('is-entering')) return;
   beginExperience.disabled = true;
+  waitingForExperience = false;
   cameraNavigation?.playIntro();
   tutorialRuntime?.start();
   loading.classList.add('is-entering');
@@ -215,13 +217,18 @@ const onDragEnd = (): void => {
 
 const consoleControls = {
   debug: (enabled = true): boolean => setDebugMode(enabled),
+  quality: (mode?: QualityMode): QualityMode => {
+    if (mode) adaptivePerformance?.setMode(mode);
+    return adaptivePerformance?.status.mode ?? mode ?? 'Auto';
+  },
+  status: (): Record<string, unknown> => adaptivePerformance?.getSnapshot() ?? { state: 'loading' },
 };
 
 Object.defineProperty(window, 'kernwerk', {
   configurable: true,
   value: consoleControls,
 });
-console.info('[Kernwerk] Level editor: kernwerk.debug() / kernwerk.debug(false)');
+console.info('[Kernwerk] Controls: kernwerk.status() / kernwerk.debug() / kernwerk.quality("Auto" | "Ultra" | "High" | "Medium" | "Low")');
 
 store.subscribe(() => {
   shadowBurstSeconds = 1;
@@ -235,6 +242,7 @@ async function start(): Promise<void> {
     setLoadingProgress(0.8);
     applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment, textureStreaming });
     sceneRuntime.refreshPresentation();
+    adaptivePerformance = new AdaptivePerformanceRuntime(renderer, scene, postProcessing);
     physicsRuntime = await PhysicsRuntime.create(bindings);
     interactionRuntime = new InteractionRuntime(
       camera,
@@ -266,6 +274,7 @@ async function start(): Promise<void> {
       postProcessing,
       textureStreaming,
       levelConfig,
+      adaptivePerformance,
     );
     cameraNavigation = new CameraNavigationRuntime(
       camera,
@@ -300,8 +309,12 @@ async function start(): Promise<void> {
       textureStreaming.prewarmMediumTier((progress) => setLoadingProgress(0.88 + progress * 0.11)),
       delay(900),
     ]);
+    setLoadingProgress(0.99);
+    await adaptivePerformance.calibrate();
     setLoadingProgress(1);
+    waitingForExperience = true;
     loading.classList.add('is-ready');
+    document.documentElement.classList.remove('is-loading-input');
     loadingReady.setAttribute('aria-hidden', 'false');
     loading.setAttribute('role', 'dialog');
     loading.setAttribute('aria-label', 'Begin Kernwerk digital experience');
@@ -310,6 +323,7 @@ async function start(): Promise<void> {
       console.warn('[Camera navigation] CAM_Start and CAM_Overview were not found in Scene0.glb. Free camera fallback is active.');
     }
   } catch (error) {
+    document.documentElement.classList.remove('is-loading-input');
     loadingLabel.textContent = error instanceof Error ? error.message : 'Scene loading failed.';
     loading.classList.add('is-error');
     console.error(error);
@@ -323,9 +337,11 @@ renderer.setAnimationLoop(() => {
   idleShadowElapsed += deltaSeconds;
   const refreshIdleShadow = idleShadowElapsed >= 1;
   if (refreshIdleShadow) idleShadowElapsed = 0;
-  renderer.shadowMap.needsUpdate = shadowBurstSeconds > 0
+  renderer.shadowMap.needsUpdate = renderer.shadowMap.enabled && (
+    shadowBurstSeconds > 0
     || refreshIdleShadow
-    || (physicsRuntime?.needsShadowUpdate() ?? false);
+    || (physicsRuntime?.needsShadowUpdate() ?? false)
+  );
   textureStreaming.update(deltaSeconds);
   cursorRuntime.update(deltaSeconds);
   postProcessing.setAutofocusPoint(cursorRuntime.ndc);
@@ -337,7 +353,8 @@ renderer.setAnimationLoop(() => {
   interactionRuntime?.update(deltaSeconds);
   physicsRuntime?.update(deltaSeconds);
   sceneRuntime.update(deltaSeconds);
-  postProcessing.render(deltaSeconds);
+  if (!waitingForExperience) postProcessing.render(deltaSeconds);
+  adaptivePerformance?.update();
 });
 
 function resize(): void {

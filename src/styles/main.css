@@ -804,6 +804,10 @@ button {
   opacity: 1;
 }
 
+html.is-loading-input #cursor-ring {
+  opacity: 0 !important;
+}
+
 #cursor-ring.is-active {
   width: 14px;
   height: 14px;

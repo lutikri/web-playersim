@@ -79,7 +79,6 @@ export class DiscPrefabRuntime {
       color: 0xe8f1f3,
       transparent: true,
       opacity: 0.42,
-      transmission: 0.62,
       roughness: 0.08,
       metalness: 0,
       ior: 1.49,
