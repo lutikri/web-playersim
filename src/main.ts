@@ -10,6 +10,7 @@ import { CursorRuntime } from './interaction/CursorRuntime';
 import { PostProcessingRuntime } from './postprocessing/PostProcessingRuntime';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { AdaptivePerformanceRuntime, type QualityMode } from './performance/AdaptivePerformanceRuntime';
+import { StartupTimings } from './performance/StartupTimings';
 import { CameraRuntime } from './scene/CameraRuntime';
 import { CameraNavigationRuntime } from './scene/CameraNavigationRuntime';
 import { ProductCardRuntime } from './scene/ProductCardRuntime';
@@ -23,6 +24,8 @@ function requireElement<T extends Element>(selector: string): T {
   if (!element) throw new Error(`Required DOM element not found: ${selector}`);
   return element;
 }
+
+const startupTimings = new StartupTimings();
 
 const canvas = requireElement<HTMLCanvasElement>('#scene');
 const loading = requireElement<HTMLElement>('#loading');
@@ -222,13 +225,14 @@ const consoleControls = {
     return adaptivePerformance?.status.mode ?? mode ?? 'Auto';
   },
   status: (): Record<string, unknown> => adaptivePerformance?.getSnapshot() ?? { state: 'loading' },
+  loading: () => startupTimings.report(),
 };
 
 Object.defineProperty(window, 'kernwerk', {
   configurable: true,
   value: consoleControls,
 });
-console.info('[Kernwerk] Controls: kernwerk.status() / kernwerk.debug() / kernwerk.quality("Auto" | "Ultra" | "High" | "Medium" | "Low")');
+console.info('[Kernwerk] Controls: kernwerk.status() / kernwerk.loading() / kernwerk.debug() / kernwerk.quality("Auto" | "Ultra" | "High" | "Medium" | "Low")');
 
 store.subscribe(() => {
   shadowBurstSeconds = 1;
@@ -236,14 +240,22 @@ store.subscribe(() => {
 
 async function start(): Promise<void> {
   try {
-    const bindings = await sceneRuntime.load((progress) => {
-      setLoadingProgress(progress * 0.78);
-    });
+    startupTimings.record('HTML + JS bootstrap', performance.now(), 0);
+    const finishSceneLoad = startupTimings.start('Scene load total');
+    const bindings = await sceneRuntime.load(
+      (progress) => setLoadingProgress(progress * 0.78),
+      (label, durationMs) => startupTimings.record(label, durationMs),
+    );
+    finishSceneLoad();
     setLoadingProgress(0.8);
+    const finishLevelSetup = startupTimings.start('Level config + presentation');
     applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment, textureStreaming });
     sceneRuntime.refreshPresentation();
     adaptivePerformance = new AdaptivePerformanceRuntime(renderer, scene, postProcessing);
+    finishLevelSetup();
+    const finishPhysics = startupTimings.start('Rapier import + physics world');
     physicsRuntime = await PhysicsRuntime.create(bindings);
+    finishPhysics();
     interactionRuntime = new InteractionRuntime(
       camera,
       canvas,
@@ -261,7 +273,9 @@ async function start(): Promise<void> {
       sceneRuntime,
       (id, root) => interactionRuntime?.registerDisc(id, root),
     );
+    const finishBundledDiscs = startupTimings.start('Bundled discs + audio metadata');
     await trackRuntime.loadBundledDiscs();
+    finishBundledDiscs();
     setLoadingProgress(0.87);
     playerFoleyRuntime = new PlayerFoleyRuntime(store, bindings, trackRuntime);
     debugPanel = new DebugPanel(
@@ -305,12 +319,25 @@ async function start(): Promise<void> {
     );
     loadTrackButton.disabled = false;
     textureStreaming.startDeferredUpgrades();
+    const finishMediumTextures = startupTimings.start('Medium texture tier prewarm');
     await Promise.all([
-      textureStreaming.prewarmMediumTier((progress) => setLoadingProgress(0.88 + progress * 0.11)),
+      textureStreaming.prewarmMediumTier((progress) => setLoadingProgress(0.88 + progress * 0.02)).finally(finishMediumTextures),
       delay(900),
     ]);
+    loadingLabel.textContent = 'ADJUSTING PERFORMANCE';
+    loading.classList.add('is-adjusting');
+    cameraRuntime.setParallaxEnabled(false);
+    cameraRuntime.goToPose('CAM_Overview', 0.001);
+    await delay(80);
+    const finishCalibration = startupTimings.start('Visible-scene quality calibration');
+    await adaptivePerformance.calibrateVisibleScene((progress) => setLoadingProgress(0.9 + progress * 0.09));
+    finishCalibration();
+    loading.classList.remove('is-adjusting');
+    await delay(950);
+    cameraRuntime.goToPose('CAM_Start', 0.001);
+    await delay(80);
+    cameraRuntime.setParallaxEnabled(true);
     setLoadingProgress(0.99);
-    await adaptivePerformance.calibrate();
     setLoadingProgress(1);
     waitingForExperience = true;
     loading.classList.add('is-ready');
@@ -319,6 +346,7 @@ async function start(): Promise<void> {
     loading.setAttribute('role', 'dialog');
     loading.setAttribute('aria-label', 'Begin Kernwerk digital experience');
     beginExperience.focus({ preventScroll: true });
+    startupTimings.finish();
     if (!cameraNavigation.isGuided) {
       console.warn('[Camera navigation] CAM_Start and CAM_Overview were not found in Scene0.glb. Free camera fallback is active.');
     }

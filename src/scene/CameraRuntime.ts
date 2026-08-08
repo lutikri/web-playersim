@@ -40,6 +40,7 @@ export class CameraRuntime {
   private pitch = -0.18;
   private looking = false;
   private inputEnabled = true;
+  private parallaxEnabled = true;
   private freeCameraMode = true;
   private transition: CameraTransition | null = null;
   private currentPoseNameValue: string | null = null;
@@ -99,6 +100,13 @@ export class CameraRuntime {
   setEnabled(enabled: boolean): void {
     this.inputEnabled = enabled;
     if (!enabled) this.looking = false;
+  }
+
+  setParallaxEnabled(enabled: boolean): void {
+    this.parallaxEnabled = enabled;
+    if (enabled) return;
+    this.parallaxTarget.set(0, 0);
+    this.parallaxCurrent.set(0, 0);
   }
 
   setFreeCameraMode(enabled: boolean): void {
@@ -213,7 +221,7 @@ export class CameraRuntime {
   }
 
   private updateParallax(deltaSeconds: number): void {
-    if (this.inputEnabled) {
+    if (this.inputEnabled && this.parallaxEnabled) {
       this.parallaxCurrent.lerp(this.parallaxTarget, 1 - Math.exp(-5.5 * deltaSeconds));
     }
     this.parallaxEuler.set(

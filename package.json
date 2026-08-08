@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "preview:lan": "npm run build && vite preview --host 0.0.0.0",
     "textures": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-textures.ps1",
     "textures:4k": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-textures.ps1 -Force -OnlyTier 4K",
     "textures:podium": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-runtime-textures.ps1 -Force -OnlyName T_PodiumMat1_*",

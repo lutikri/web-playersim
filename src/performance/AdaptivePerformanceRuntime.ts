@@ -12,8 +12,11 @@ interface AuthoredLightState {
   castShadow: boolean;
 }
 
-export const QUALITY_PROMOTION_FPS = 50;
+export const QUALITY_PROMOTION_FPS = 55;
 const QUALITY_DEGRADE_FPS = 38;
+const QUALITY_MEASUREMENT_MS = 3_000;
+const MEASUREMENT_STALL_MS = 1_000;
+const CALIBRATION_MEASUREMENT_MS = 1_200;
 
 export function canPromoteQuality(measuredFps: number): boolean {
   return measuredFps >= QUALITY_PROMOTION_FPS;
@@ -21,6 +24,14 @@ export function canPromoteQuality(measuredFps: number): boolean {
 
 function nextLowerProfile(profile: QualityPreset): QualityPreset {
   return PROFILE_ORDER[Math.max(0, PROFILE_ORDER.indexOf(profile) - 1)];
+}
+
+function nextHigherProfile(profile: QualityPreset): QualityPreset {
+  return PROFILE_ORDER[Math.min(PROFILE_ORDER.length - 1, PROFILE_ORDER.indexOf(profile) + 1)];
+}
+
+function isProfileAllowed(profile: QualityPreset, ceiling: QualityPreset): boolean {
+  return PROFILE_ORDER.indexOf(profile) <= PROFILE_ORDER.indexOf(ceiling);
 }
 
 export class AdaptivePerformanceRuntime {
@@ -34,7 +45,9 @@ export class AdaptivePerformanceRuntime {
   private monitorStartedAt = performance.now();
   private monitorFrames = 0;
   private adjustmentCooldownUntil = 0;
-  private calibrationVersion = 0;
+  private monitoringEnabled = false;
+  private lastMonitorFrameAt = performance.now();
+  private autoProfileCeiling: QualityPreset = 'Ultra';
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -54,46 +67,53 @@ export class AdaptivePerformanceRuntime {
     this.applyProfile('Low');
   }
 
-  async calibrate(): Promise<QualityPreset> {
-    const calibrationVersion = ++this.calibrationVersion;
-    if (document.visibilityState !== 'visible') {
-      this.applyProfile('Low');
-      return 'Low';
-    }
+  startAutoTuning(): void {
+    this.status.mode = 'Auto';
+    this.monitoringEnabled = true;
+    this.autoProfileCeiling = 'Ultra';
+    this.applyProfile('Low', 1_000);
+    console.info('[Performance] Auto tuning started at Low using rendered scene frames');
+  }
 
+  async calibrateVisibleScene(onProgress: (progress: number) => void = () => undefined): Promise<QualityPreset> {
+    this.status.mode = 'Auto';
+    this.monitoringEnabled = false;
+    this.autoProfileCeiling = 'Ultra';
     let selectedProfile: QualityPreset = 'Low';
     const measurements: Partial<Record<QualityPreset, number>> = {};
-    for (const candidate of PROFILE_ORDER) {
-      if (calibrationVersion !== this.calibrationVersion || this.status.mode !== 'Auto') {
-        return this.status.profile;
-      }
-      this.applyProfile(candidate);
-      await this.waitFrames(2);
-      const measuredFps = await this.measureFrames(450);
+
+    for (let index = 0; index < PROFILE_ORDER.length; index += 1) {
+      const candidate = PROFILE_ORDER[index];
+      this.applyProfile(candidate, 0);
+      onProgress(index / PROFILE_ORDER.length);
+      await this.waitFrames(8);
+      const measuredFps = await this.measureRenderedFrames(CALIBRATION_MEASUREMENT_MS);
       measurements[candidate] = Math.round(measuredFps * 10) / 10;
       this.status.measuredFps = measurements[candidate];
-      if (!canPromoteQuality(measuredFps)) {
-        this.applyProfile(selectedProfile);
-        break;
-      }
+      if (!canPromoteQuality(measuredFps)) break;
       selectedProfile = candidate;
     }
 
-    console.info('[Performance] Calibration complete', {
+    this.autoProfileCeiling = selectedProfile;
+    this.applyProfile(selectedProfile, 4_000);
+    this.monitoringEnabled = true;
+    onProgress(1);
+    console.info('[Performance] Visible-scene calibration complete', {
       measurements,
-      profile: this.status.profile,
+      profile: selectedProfile,
+      ceiling: this.autoProfileCeiling,
       renderer: this.renderer.info.render,
     });
-    return this.status.profile;
+    return selectedProfile;
   }
 
   setMode(mode: QualityMode): void {
-    this.calibrationVersion += 1;
     this.status.mode = mode;
     if (mode === 'Auto') {
-      void this.calibrate();
+      this.startAutoTuning();
       return;
     }
+    this.monitoringEnabled = false;
     this.applyProfile(mode);
   }
 
@@ -103,6 +123,7 @@ export class AdaptivePerformanceRuntime {
       .map(({ light }) => [light.name, light.visible]));
     return {
       ...this.status,
+      autoProfileCeiling: this.autoProfileCeiling,
       renderScale: this.postProcessing.settings.renderScale,
       postProcessing: this.postProcessing.settings.enabled,
       ambientOcclusion: this.postProcessing.settings.ambientOcclusion.enabled,
@@ -115,7 +136,7 @@ export class AdaptivePerformanceRuntime {
     };
   }
 
-  applyProfile(profile: QualityPreset): void {
+  applyProfile(profile: QualityPreset, cooldownMs = 10_000): void {
     this.status.profile = profile;
     this.postProcessing.applyQualityPreset(profile);
 
@@ -129,29 +150,51 @@ export class AdaptivePerformanceRuntime {
       light.visible = isExtraLight ? visible && extraLightsEnabled : visible;
       light.castShadow = shadowsEnabled && castShadow;
     });
-    this.adjustmentCooldownUntil = performance.now() + 10_000;
+    this.adjustmentCooldownUntil = performance.now() + cooldownMs;
     this.monitorStartedAt = performance.now();
+    this.lastMonitorFrameAt = this.monitorStartedAt;
     this.monitorFrames = 0;
   }
 
   update(): void {
-    if (this.status.mode !== 'Auto' || document.visibilityState !== 'visible') return;
-    this.monitorFrames += 1;
+    if (!this.monitoringEnabled || this.status.mode !== 'Auto' || document.visibilityState !== 'visible') return;
     const now = performance.now();
+    if (now - this.lastMonitorFrameAt > MEASUREMENT_STALL_MS) {
+      this.monitorStartedAt = now;
+      this.monitorFrames = 0;
+      this.lastMonitorFrameAt = now;
+      console.info('[Performance] Ignoring interrupted measurement window');
+      return;
+    }
+    this.lastMonitorFrameAt = now;
+    this.monitorFrames += 1;
     const elapsed = now - this.monitorStartedAt;
-    if (elapsed < 4_000) return;
+    if (elapsed < QUALITY_MEASUREMENT_MS) return;
 
     const fps = this.monitorFrames * 1000 / elapsed;
     this.monitorStartedAt = now;
     this.monitorFrames = 0;
-    if (now < this.adjustmentCooldownUntil || fps >= QUALITY_DEGRADE_FPS || this.status.profile === 'Low') return;
+    const measuredFps = Math.round(fps * 10) / 10;
+    this.status.measuredFps = measuredFps;
+    if (now < this.adjustmentCooldownUntil) return;
 
-    const profile = nextLowerProfile(this.status.profile);
-    this.applyProfile(profile);
-    console.info('[Performance] Sustained frame-rate drop, reducing quality', {
-      measuredFps: Math.round(fps * 10) / 10,
-      profile,
-    });
+    if (fps < QUALITY_DEGRADE_FPS && this.status.profile !== 'Low') {
+      const profile = nextLowerProfile(this.status.profile);
+      this.autoProfileCeiling = profile;
+      this.applyProfile(profile, 4_000);
+      console.info('[Performance] Sustained frame-rate drop, reducing quality', {
+        measuredFps,
+        profile,
+        ceiling: this.autoProfileCeiling,
+      });
+      return;
+    }
+    if (canPromoteQuality(fps) && this.status.profile !== 'Ultra') {
+      const profile = nextHigherProfile(this.status.profile);
+      if (!isProfileAllowed(profile, this.autoProfileCeiling)) return;
+      this.applyProfile(profile, QUALITY_MEASUREMENT_MS);
+      console.info('[Performance] Sustained frame rate, increasing quality', { measuredFps, profile });
+    }
   }
 
   private waitFrames(frameCount: number): Promise<void> {
@@ -166,11 +209,17 @@ export class AdaptivePerformanceRuntime {
     });
   }
 
-  private measureFrames(durationMs: number): Promise<number> {
+  private measureRenderedFrames(durationMs: number): Promise<number> {
     return new Promise((resolve) => {
-      const startedAt = performance.now();
+      let startedAt = performance.now();
+      let previousFrameAt = startedAt;
       let frames = 0;
       const tick = (now: number): void => {
+        if (now - previousFrameAt > MEASUREMENT_STALL_MS) {
+          startedAt = now;
+          frames = 0;
+        }
+        previousFrameAt = now;
         frames += 1;
         const elapsed = now - startedAt;
         if (elapsed >= durationMs) resolve(frames * 1000 / elapsed);

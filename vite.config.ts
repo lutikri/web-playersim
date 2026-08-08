@@ -82,8 +82,8 @@ function basisTranscoderAssets(): Plugin[] {
   ];
 }
 
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? '/web-playersim/' : '/',
+export default defineConfig(({ command, isPreview }) => ({
+  base: command === 'build' || isPreview ? '/web-playersim/' : '/',
   plugins: [levelConfigWriter(), ...basisTranscoderAssets()],
   assetsInclude: ['**/*.glb', '**/*.ktx2'],
   publicDir: 'node_modules/three/examples/jsm/libs/draco/gltf',

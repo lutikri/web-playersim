@@ -155,20 +155,25 @@ export class SceneRuntime {
     return this.productCardAnchorsValue;
   }
 
-  async load(onProgress: (progress: number) => void = () => undefined): Promise<SceneBindings> {
+  async load(
+    onProgress: (progress: number) => void = () => undefined,
+    onTiming: (label: string, durationMs: number) => void = () => undefined,
+  ): Promise<SceneBindings> {
     onProgress(0.04);
     let loadedAssets = 0;
-    const loadAsset = async (url: string) => {
+    const loadAsset = async (label: string, url: string) => {
+      const startedAt = performance.now();
       const gltf = await this.loader.loadAsync(url);
+      onTiming(`GLB: ${label}`, performance.now() - startedAt);
       loadedAssets += 1;
       onProgress(0.08 + loadedAssets * 0.11);
       return gltf;
     };
     const [levelGltf, cdGltf, playerGltf, speakerGltf] = await Promise.all([
-      loadAsset(ASSETS.level),
-      loadAsset(ASSETS.cd),
-      loadAsset(ASSETS.player),
-      loadAsset(ASSETS.speaker),
+      loadAsset('Scene0', ASSETS.level),
+      loadAsset('SM_CD1', ASSETS.cd),
+      loadAsset('SM_Player1', ASSETS.player),
+      loadAsset('SM_Speaker1', ASSETS.speaker),
     ]);
     const level = levelGltf.scene;
     this.discTemplate = cdGltf.scene.clone(true);
@@ -226,20 +231,25 @@ export class SceneRuntime {
     const colliders: THREE.Object3D[] = [];
     [level, player, speakerLeft, speakerRight].forEach((root) => configureMeshes(root, colliders));
     ensureFallbackBoxCollider(player, requireObject(player, 'SM_Player1_Base1', ASSETS.player), colliders);
+    let stageStartedAt = performance.now();
     this.sceneMaterialRuntime = await SceneMaterialRuntime.create(
       [level, player, speakerLeft, speakerRight],
       this.textureStreaming,
     );
+    onTiming('Scene materials + initial textures', performance.now() - stageStartedAt);
     onProgress(0.68);
+    stageStartedAt = performance.now();
     this.speakerRuntime = await SpeakerPrefabRuntime.create(
       [speakerLeft, speakerRight],
       this.studioEnvironment,
       this.textureStreaming,
     );
+    onTiming('Speaker prefab setup', performance.now() - stageStartedAt);
     onProgress(0.78);
     onProgress(0.86);
     this.scene.add(level, player, speakerLeft, speakerRight);
 
+    stageStartedAt = performance.now();
     this.playerRuntime = await PlayerPrefabRuntime.create(
       player,
       this.store,
@@ -247,6 +257,7 @@ export class SceneRuntime {
       this.studioEnvironment,
       this.textureStreaming,
     );
+    onTiming('Player prefab setup', performance.now() - stageStartedAt);
     onProgress(0.96);
     const playerBindings = this.playerRuntime.bindings;
 
