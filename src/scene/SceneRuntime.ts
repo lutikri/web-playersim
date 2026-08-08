@@ -134,7 +134,7 @@ export class SceneRuntime {
     private readonly studioEnvironment: StudioEnvironmentRuntime,
     private readonly textureStreaming: TextureStreamingRuntime,
   ) {
-    this.dracoLoader.setDecoderPath('/');
+    this.dracoLoader.setDecoderPath(import.meta.env.BASE_URL);
     this.loader.setDRACOLoader(this.dracoLoader);
   }
 

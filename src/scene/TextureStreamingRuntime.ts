@@ -68,7 +68,9 @@ export class TextureStreamingRuntime {
   private cinematicModeValue = false;
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {
-    this.loader = new KTX2Loader().setTranscoderPath('/basis/').detectSupport(renderer);
+    this.loader = new KTX2Loader()
+      .setTranscoderPath(`${import.meta.env.BASE_URL}basis/`)
+      .detectSupport(renderer);
   }
 
   get cinematicMode(): boolean {
