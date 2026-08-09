@@ -1,77 +1,151 @@
-# Technics Player Sim
+# KERNWERK
 
-Early interactive prototype for a minimal Three.js CD receiver scene. The level GLB provides prefab markers, and runtime GLBs are placed at those authored transforms.
+<div align="center">
+  <img src="assets/favico.svg" width="72" height="72" alt="KERNWERK mark">
+  <h3>Interactive 3D Audio System</h3>
+  <p>A real-time product study built around a fictional compact stereo system.</p>
+  <p><a href="https://lutikri.github.io/web-playersim/"><strong>Launch the live experience</strong></a></p>
+</div>
 
-## Run
+![KERNWERK system overview](docs/images/demo-overview.jpg)
+
+## Overview
+
+KERNWERK is an interactive product visualization rather than a conventional configurator. The scene combines authored camera views, physical CD interaction, spatial audio, product information, and a performance-aware rendering pipeline in one browser experience.
+
+The project is designed to remain usable across integrated graphics, laptops, and high-end GPUs. It starts conservatively, measures the rendered scene, and adjusts quality without requiring the visitor to understand graphics settings.
+
+## Highlights
+
+- Guided camera tour with parallax, points of interest, and anchored product cards
+- Physics-based CD dragging, tray attraction, snapping, removal, and lid interaction
+- Functional player controls, display states, volume, track selection, and playback
+- Local FLAC, WAV, and MP3 loading with multi-track discs and generated disc labels
+- Stereo Web Audio playback through separate high- and low-frequency speaker sources
+- Audio-reactive speaker membranes and positional player foley
+- Progressive KTX2 texture streaming with Low, Medium, High, and cinematic assets
+- Adaptive performance profiles for post-processing, lights, shadows, pixel ratio, and texture quality
+- In-browser level editor for objects, lights, materials, post-processing, and saved level overrides
+
+![KERNWERK player interaction and product card](docs/images/demo-interaction.jpg)
+
+## Controls
+
+| Action | Input |
+| --- | --- |
+| Open a product view | Select a camera point of interest |
+| Return to the overview | `Back` or `Esc` |
+| Interact with the player | Click its physical controls or CD lid |
+| Move a disc | Drag it with the pointer |
+| Create a custom disc | Use `Load track` or drop audio files onto the page |
+| Free camera in debug mode | `WASD`, `Q` / `E`, and right-mouse look |
+
+The file picker accepts up to 20 tracks per disc, with a maximum duration of 15 minutes per track.
+
+## Quick Start
+
+Requirements: a current Node.js release and npm.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Quality checks:
+Vite prints the local URL and reloads the scene when source files change. To expose the development server on the local network:
+
+```bash
+npm run dev -- --host 0.0.0.0
+```
+
+Build and inspect the production bundle locally:
+
+```bash
+npm run build
+npm run preview
+```
+
+Run the automated checks:
 
 ```bash
 npm run check
 ```
 
-Regenerate GPU-compressed runtime textures after changing a master in `assets-source/textures/`:
+## Asset Pipeline
 
-```bash
-npm run textures
+Editable source assets live in the ignored `assets-source/` directory. Browser-ready models, textures, and audio are generated or copied into `assets/` and committed so GitHub Pages can serve the project directly.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run textures` | Generate the normal runtime texture tiers |
+| `npm run textures:4k` | Rebuild the 4K tier |
+| `npm run textures:cinematic` | Prepare cinematic source textures |
+| `npm run audio` | Convert bundled audio for browser playback |
+
+Texture generation uses KTX2/Basis Universal profiles chosen per map type. The application first presents a practical runtime tier, then upgrades textures when the selected quality and measured performance allow it.
+
+## Project Structure
+
+```text
+assets/                  Runtime GLB, KTX2, image, and audio files
+docs/images/             README media
+scripts/                 Texture and audio preparation tools
+src/config/              Saved level configuration
+src/app/                 Shared application state
+src/scene/               Scene, camera, materials, streaming, and presentation
+src/receiver/            Player, disc, speaker, and display behavior
+src/interaction/         Pointer interaction and custom cursor
+src/physics/             Rapier world and physical dragging
+src/audio/               Track playback and player foley
+src/performance/         Startup measurement and adaptive quality
+src/postprocessing/      Render effects and quality-aware composition
+src/debug/               Level, object, light, and material editor
 ```
 
-The converter skips current outputs. Use `npm run textures:4k` for ETC1S, `npm run textures:8k` for the native player cinematic tier, or `npm run textures:cinematic` to refresh every original-PNG high tier. `npm run textures:force` rebuilds every adaptive ETC1S tier.
+Runtime state is coordinated through a small store. `SceneRuntime` owns the Three.js scene and prefab assembly; dedicated runtimes handle player behavior, discs, speakers, camera presentation, Rapier interaction, Web Audio, post-processing, adaptive quality, and the debug editor.
 
-Regenerate browser-ready Ogg Opus foley after changing WAV masters in `assets-source/audio/`:
+## Debug And Level Editing
 
-```bash
-npm run audio
+The public build keeps editor controls hidden. Open the browser console and run:
+
+```js
+kernwerk.debug();
 ```
 
-Use `npm run audio:force` to rebuild every sound.
+Useful diagnostics:
 
-## Controls
+```js
+kernwerk.status();
+kernwerk.loading();
+kernwerk.quality('Auto'); // Auto, Ultra, High, Medium, or Low
+```
 
-- `WASD`: move the free camera
-- `Q` / `E`: move down / up
-- Right mouse drag: look around
-- Left mouse drag: move the CD
-- Left click: Power, Volume Up, Volume Down, CD lid
-- `DEBUG`: toggle the lil-gui level editor
+When running through the Vite development server, the editor's save action writes level overrides to `src/config/level-config.json`. In a static production deployment it exports the configuration instead.
 
-The CD is a Rapier dynamic rigid body driven through a damped spring joint while held. It keeps gravity, inertia and collider contact after release; releasing near the open `SOKET_CD` commits it to the player.
+## Scene Conventions
 
-## Architecture
+The environment is authored in `assets/enviroment/Scene0.glb`; reusable objects live in `assets/Prefabs/`. Blender node names form the runtime contract:
 
-`Store` owns the business state and changes it only through typed events. `SceneRuntime` resolves level markers and composes prefabs. `PlayerPrefabRuntime` is the model-specific factory/behavior that binds player materials, display, buttons, status light and the authored lid pivot. `InteractionRuntime` is the only pointer/raycast owner. `CameraRuntime` owns free-camera input. `DebugPanel` creates and edits objects, lights, materials and post-processing settings.
+- `PF_*` nodes mark prefab placement
+- `UBX_*` and `UCX_*` nodes provide simplified colliders
+- `CAM_*` nodes define authored camera views
+- `CAMHINT_*` nodes position corresponding navigation hints
+- `UI_ProductCard_*` nodes anchor product information in the scene
 
-The level editor uses an inspector workflow. Select prefab roots from `Objects`, scene lights from `Lights`, or live materials from `Materials`; the separate left-side `Properties` panel is rebuilt for the current selection. TransformControls support translate, rotate and scale. Point and Spot lights expose color, intensity, range, decay and shadow settings; Spot lights also expose angle, penumbra and target. Debug light helpers make non-ambient lights visible in the 3D scene.
+Keep these names stable when re-exporting GLB files. Level-editor transforms may override authored transforms until offsets are reset and the level configuration is saved again.
 
-`Level > Save to project` posts the current editor state to the local Vite dev server and writes `src/config/level-config.json`. Vite reloads the app and the saved transforms, lights, materials and post-processing settings are applied on startup. This endpoint exists only while running `npm run dev`; production builds remain read-only.
+## Technology
 
-`PostProcessingRuntime` owns the EffectComposer pipeline: GTAO, bloom, anamorphic glare, flare ghosts, chromatic aberration, autofocus depth of field, color adjustments, vignette and grain. All parameters are live-editable under `Level > Post Processing` and are stored in the same project config.
+TypeScript, Three.js, Rapier, Web Audio API, lil-gui, and Vite. The production site is deployed to GitHub Pages through the workflow in `.github/workflows/deploy-pages.yml`.
 
-`Level > Performance` exposes live FPS, frame time, draw calls, triangle count, GPU resources and the actual drawing-buffer size. Quality presets change render scale, MSAA, GTAO resolution/sample count and optional lens passes; selecting a preset updates the same project-backed post-processing config. Static shadow maps are cached and refreshed during object motion or periodically while idle.
+## Credits
 
-`DotMatrixDisplay` renders the receiver canvas from explicit square-cell glyphs. The idle state shows a compact weekday beside a larger 24-hour clock; startup and transport messages reuse the same pixel grid without browser font rasterization.
+Design and development by [Artem Lut](https://www.linkedin.com/in/artemlut/). More work is available on [Behance](https://www.behance.net/artem_lut) and [GitHub](https://github.com/lutikri).
 
-`TrackRuntime` accepts one or more local FLAC, WAV and MP3 files, extracts embedded metadata/artwork, decodes them through Web Audio and keeps the playlist in browser memory. Each file-selection batch creates a separate physical disc with its own playlist, audio buffers and `M_DiskGraphic1` artwork. Discs are arranged around `PF_CD1`, have independent Rapier bodies, and any table disc can be dragged into the empty player tray. Loading another album does not replace or stop the currently inserted disc. Stereo channels are split into independent HRTF point sources attached to `SP_SpeakerLow1` on the left and right speaker prefabs. Receiver volume uses the display scale `00-99` with `12` as the default and `30` as nominal full gain. The screen Prev/Next/Stop hitboxes control the inserted disc's playlist.
+Music featured in the demo:
 
-`PlayerFoleyRuntime` plays preconverted Ogg Opus button, power, lid, disc-fit, disc-remove and reading sounds from the player prefab origin. Reading audio follows the same explicit state as the display and disc spin, so cancellation on source, power or lid changes also stops its loop.
+- Surprising_Media, ["Smoked Glass Keys (piano dark jazz)"](https://pixabay.com/music/traditional-jazz-smoked-glass-keys-piano-dark-jazz-504005/), Pixabay Content License
+- Alexander Nakarada, ["Circuits"](https://creatorchords.com/music/circuits/), CC BY 4.0
 
-Runtime asset URLs are centralized in `SceneRuntime`. Required Blender nodes fail with an explicit asset-path error. Collision meshes matching `UBX_` or `UCX_` are hidden by default and can be inspected from `Level > Show collision`.
+## Disclaimer
 
-Texture masters remain in ignored `assets-source/textures/`. The converter creates mipmapped KTX2 files under `assets/runtime-textures/`, converting TIFF masters through temporary PNGs when needed. Runtime requires only compact ETC1S 1K for its first frame and upgrades one set at a time to ETC1S 4K. Cinematic high tiers bypass lossy texture compression and load copies of the original PNG masters: native 8K for the player and native 4K for the speaker. Replaced GPU textures are released after each complete set is applied. Automatic high-tier loading is gated behind 12 seconds of stable 55+ FPS, 8K GPU texture support, at least 8 GB reported device memory when available, and disabled browser data-saving mode. `Level > Cinematic textures` bypasses the adaptive gates while retaining the GPU 8192 texture-size requirement.
-
-`SpeakerPrefabRuntime` binds one shared `M_Speaker1` material to both speaker instances. Its BaseColor, Normal and packed Occlusion/Roughness/Metallic maps stream from 1K to 4K and receive the same studio reflection environment as the other PBR prefabs.
-
-Speaker playback uses independent left/right two-way crossovers at 2.2 kHz. `SP_SpeakerLow1` and `SP_SpeakerHigh1` are spatial emitters for the filtered bands, while their analyser levels drive the authored low and high membrane meshes. The player creates an editable point light at `PL_LightDisk1`; it is visible only while the receiver is on and a disc is inserted.
-
-Metallic materials are lit by a PMREM-filtered procedural studio environment from `StudioEnvironmentRuntime`. It affects reflections only and does not replace the visible scene background. Tune its strength and Y rotation from `Level > Environment` and `Level > Env rotation Y`.
-
-Scene units are meters. The current receiver is about 0.39 m wide and the CD is about 0.13 m across, so their relative physical scale is already suitable. Keep Blender exports at scale 1 with transforms applied.
-
-## Current scope
-
-This slice covers prefab placement, free camera, physical button feedback and foley, the red/off/blue power indicator sequence, state-driven screen/control bar, the animated CD lid and disc spin, spring-driven physical CD drag/removal/player snap, local playlist playback, project-backed level editing, and the post-processing pipeline. Disc cases and LUT grading remain later systems.
+KERNWERK is fictional branding created for this demonstration. The featured hardware is a digital interpretation of products by Technics and ELAC. This project is not affiliated with real brands, or their respective rights holders.
