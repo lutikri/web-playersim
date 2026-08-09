@@ -67,6 +67,20 @@ export interface PostProcessingSettings {
 
 export type QualityPreset = 'Ultra' | 'High' | 'Medium' | 'Low';
 
+export const MAX_NATIVE_RENDER_EDGE = 3840;
+
+export function calculateCappedPixelRatio(
+  width: number,
+  height: number,
+  devicePixelRatio: number,
+  renderScale: number,
+  maxNativeEdge = MAX_NATIVE_RENDER_EDGE,
+): number {
+  const viewportEdge = Math.max(1, width, height);
+  const nativeRatio = Math.min(devicePixelRatio, 2, maxNativeEdge / viewportEdge);
+  return nativeRatio * THREE.MathUtils.clamp(renderScale, 0.5, 1);
+}
+
 export type PostProcessingOverrides = {
   [Key in keyof PostProcessingSettings]?: PostProcessingSettings[Key] extends object
     ? { [NestedKey in keyof PostProcessingSettings[Key]]?: PostProcessingSettings[Key][NestedKey] extends object
@@ -645,8 +659,12 @@ export class PostProcessingRuntime {
   }
 
   private applyPixelRatio(): void {
-    const nativeRatio = Math.min(window.devicePixelRatio, 2);
-    this.renderer.setPixelRatio(nativeRatio * THREE.MathUtils.clamp(this.settings.renderScale, 0.5, 1));
+    this.renderer.setPixelRatio(calculateCappedPixelRatio(
+      this.width,
+      this.height,
+      window.devicePixelRatio,
+      this.settings.renderScale,
+    ));
   }
 
   private updateDiagnostics(): void {

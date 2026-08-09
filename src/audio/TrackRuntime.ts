@@ -5,6 +5,8 @@ import type { PhysicsRuntime } from '../physics/PhysicsRuntime';
 import type { SceneBindings, SceneRuntime } from '../scene/SceneRuntime';
 
 const SUPPORTED_EXTENSIONS = new Set(['flac', 'mp3', 'wav']);
+export const MAX_USER_TRACKS = 20;
+export const MAX_TRACK_DURATION_SECONDS = 15 * 60;
 const SPEAKER_CROSSOVER_HZ = 2200;
 const BUNDLED_DISCS = [
   {
@@ -39,6 +41,16 @@ interface SpeakerPlaybackNodes {
 export function isSupportedTrackFile(file: Pick<File, 'name'>): boolean {
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
   return SUPPORTED_EXTENSIONS.has(extension);
+}
+
+export function validateTrackCount(count: number): void {
+  if (count > MAX_USER_TRACKS) throw new Error(`A disc can contain up to ${MAX_USER_TRACKS} tracks.`);
+}
+
+export function validateTrackDuration(durationSeconds: number, fileName: string): void {
+  if (Number.isFinite(durationSeconds) && durationSeconds > MAX_TRACK_DURATION_SECONDS) {
+    throw new Error(`${fileName} is longer than 15 minutes.`);
+  }
 }
 
 export function receiverVolumeToGain(volume: number): number {
@@ -152,21 +164,24 @@ export class TrackRuntime {
     if (files.length === 0 || files.some((file) => !isSupportedTrackFile(file))) {
       throw new Error('Choose one or more .flac, .wav or .mp3 files.');
     }
+    validateTrackCount(files.length);
     const generation = ++this.operationGeneration;
     const context = this.ensureContext();
     await context.resume();
-    const loaded = await Promise.all(files.map(async (file) => {
-      const [arrayBuffer, metadata] = await Promise.all([
-        file.arrayBuffer(),
-        parseBlob(file, { duration: true }).catch(() => null),
-      ]);
+    const loaded = [];
+    for (const file of files) {
+      const metadata = await parseBlob(file, { duration: true }).catch(() => null);
+      validateTrackDuration(metadata?.format.duration ?? 0, file.name);
+      const arrayBuffer = await file.arrayBuffer();
       const buffer = await context.decodeAudioData(arrayBuffer);
+      validateTrackDuration(buffer.duration, file.name);
       const picture = selectCover(metadata?.common.picture);
       const cover = picture
         ? new Blob([new Uint8Array(picture.data).slice().buffer], { type: picture.format })
         : null;
-      return { file, metadata, buffer, cover };
-    }));
+      loaded.push({ file, metadata, buffer, cover });
+      if (generation !== this.operationGeneration) return;
+    }
     if (generation !== this.operationGeneration) return;
     const discId = ++this.discId;
     const titles = loaded.map(({ file, metadata }) => metadata?.common.title?.trim() || file.name.replace(/\.[^.]+$/, ''));

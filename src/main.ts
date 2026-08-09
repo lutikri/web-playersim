@@ -32,6 +32,8 @@ const loading = requireElement<HTMLElement>('#loading');
 const loadingLabel = requireElement<HTMLElement>('#loading-label');
 const loadingProgress = requireElement<HTMLElement>('#loading-progress');
 const loadingPercentage = requireElement<HTMLOutputElement>('#loading-percentage');
+const loadingErrorDetail = requireElement<HTMLElement>('#loading-error-detail');
+const loadingRetry = requireElement<HTMLButtonElement>('#loading-retry');
 const loadingReady = requireElement<HTMLElement>('#loading-ready');
 const beginExperience = requireElement<HTMLButtonElement>('#begin-experience');
 const loadTrackButton = requireElement<HTMLButtonElement>('#load-track');
@@ -50,6 +52,9 @@ const trackDropOverlay = requireElement<HTMLElement>('#track-drop-overlay');
 const infoToggle = requireElement<HTMLButtonElement>('#info-toggle');
 const infoPanel = requireElement<HTMLElement>('#info-panel');
 const infoClose = requireElement<HTMLButtonElement>('#info-close');
+const settingsToggle = requireElement<HTMLButtonElement>('#settings-toggle');
+const settingsPanel = requireElement<HTMLElement>('#settings-panel');
+const qualityButtons = [...document.querySelectorAll<HTMLButtonElement>('#quality-selector [data-quality]')];
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -100,6 +105,26 @@ let disposed = false;
 let waitingForExperience = false;
 let shadowBurstSeconds = 1;
 let idleShadowElapsed = 0;
+let webglContextLost = false;
+
+const QUALITY_STORAGE_KEY = 'kernwerk:quality:v1';
+
+function readStoredQuality(): 'Low' | 'Medium' | 'High' | null {
+  try {
+    const quality = localStorage.getItem(QUALITY_STORAGE_KEY);
+    return quality === 'Low' || quality === 'Medium' || quality === 'High' ? quality : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeQuality(quality: 'Low' | 'Medium' | 'High'): void {
+  try {
+    localStorage.setItem(QUALITY_STORAGE_KEY, quality);
+  } catch {
+    // Quality selection still applies for the current session when storage is unavailable.
+  }
+}
 
 const logPointerTarget = (event: PointerEvent): void => {
   const target = event.target instanceof Element ? event.target : null;
@@ -121,6 +146,20 @@ function setLoadingProgress(progress: number): void {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function showRecoveryState(label: string, detail: string): void {
+  waitingForExperience = false;
+  document.documentElement.classList.remove('is-loading-input');
+  loading.classList.remove('is-hidden', 'is-entering', 'is-ready', 'is-adjusting');
+  loading.classList.add('is-error');
+  loading.removeAttribute('aria-hidden');
+  loading.setAttribute('role', 'alert');
+  loading.setAttribute('aria-label', label);
+  loadingReady.setAttribute('aria-hidden', 'true');
+  loadingLabel.textContent = label;
+  loadingErrorDetail.textContent = detail;
+  loadingRetry.focus({ preventScroll: true });
 }
 
 function enterExperience(): void {
@@ -145,9 +184,28 @@ function setDebugMode(enabled: boolean): boolean {
 }
 
 function setInfoVisible(visible: boolean): void {
+  if (visible) setSettingsVisible(false);
   infoPanel.classList.toggle('is-visible', visible);
   infoPanel.setAttribute('aria-hidden', String(!visible));
   infoToggle.setAttribute('aria-expanded', String(visible));
+}
+
+function syncQualitySelector(): void {
+  const activeProfile = adaptivePerformance?.status.profile ?? 'Low';
+  const visibleProfile = activeProfile === 'Ultra' ? 'High' : activeProfile;
+  qualityButtons.forEach((button) => {
+    button.setAttribute('aria-checked', String(button.dataset.quality === visibleProfile));
+  });
+}
+
+function setSettingsVisible(visible: boolean): void {
+  if (visible) {
+    setInfoVisible(false);
+    syncQualitySelector();
+  }
+  settingsPanel.classList.toggle('is-visible', visible);
+  settingsPanel.setAttribute('aria-hidden', String(!visible));
+  settingsToggle.setAttribute('aria-expanded', String(visible));
 }
 
 function isFileDrag(event: DragEvent): boolean {
@@ -181,6 +239,7 @@ async function loadTrackFiles(files: File[]): Promise<void> {
 const onEscape = (event: KeyboardEvent): void => {
   if (event.key !== 'Escape') return;
   setInfoVisible(false);
+  setSettingsVisible(false);
   if (debugVisible) setDebugMode(false);
   cameraRuntime.goToPose('CAM_Overview', 1.2);
 };
@@ -241,6 +300,7 @@ store.subscribe(() => {
 
 async function start(): Promise<void> {
   try {
+    const storedQuality = readStoredQuality();
     startupTimings.record('HTML + JS bootstrap', performance.now(), 0);
     const finishSceneLoad = startupTimings.start('Scene load total');
     const bindings = await sceneRuntime.load(
@@ -253,6 +313,8 @@ async function start(): Promise<void> {
     applyLevelConfig(levelConfig, { scene, renderer, studioEnvironment, textureStreaming });
     sceneRuntime.refreshPresentation();
     adaptivePerformance = new AdaptivePerformanceRuntime(renderer, scene, postProcessing);
+    if (storedQuality) adaptivePerformance.setMode(storedQuality);
+    syncQualitySelector();
     finishLevelSetup();
     const finishPhysics = startupTimings.start('Rapier import + physics world');
     physicsRuntime = await PhysicsRuntime.create(bindings);
@@ -334,8 +396,16 @@ async function start(): Promise<void> {
     cameraRuntime.setParallaxEnabled(false);
     cameraRuntime.goToPose('CAM_Overview', 0.001);
     await delay(80);
-    const finishCalibration = startupTimings.start('Visible-scene quality calibration');
-    await adaptivePerformance.calibrateVisibleScene((progress) => setLoadingProgress(0.9 + progress * 0.09));
+    const finishCalibration = startupTimings.start(storedQuality
+      ? 'Saved quality profile restore'
+      : 'Visible-scene quality calibration');
+    if (storedQuality) {
+      setLoadingProgress(0.99);
+      await delay(480);
+    } else {
+      await adaptivePerformance.calibrateVisibleScene((progress) => setLoadingProgress(0.9 + progress * 0.09));
+    }
+    syncQualitySelector();
     finishCalibration();
     loading.classList.remove('is-adjusting');
     await delay(950);
@@ -356,12 +426,28 @@ async function start(): Promise<void> {
       console.warn('[Camera navigation] CAM_Start and CAM_Overview were not found in Scene0.glb. Free camera fallback is active.');
     }
   } catch (error) {
-    document.documentElement.classList.remove('is-loading-input');
-    loadingLabel.textContent = error instanceof Error ? error.message : 'Scene loading failed.';
-    loading.classList.add('is-error');
+    renderer.setAnimationLoop(null);
+    showRecoveryState(
+      'SCENE LOADING FAILED',
+      error instanceof Error ? error.message : 'The scene could not be initialized.',
+    );
     console.error(error);
   }
 }
+
+const onWebGLContextLost = (event: Event): void => {
+  event.preventDefault();
+  webglContextLost = true;
+  renderer.setAnimationLoop(null);
+  showRecoveryState(
+    'GRAPHICS CONTEXT LOST',
+    'The browser reset the graphics device. Retry to rebuild the scene and GPU resources.',
+  );
+};
+
+const onWebGLContextRestored = (): void => {
+  if (webglContextLost) window.location.reload();
+};
 
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
@@ -407,6 +493,8 @@ function dispose(): void {
   window.removeEventListener('dragleave', onDragLeave);
   window.removeEventListener('drop', onDrop);
   window.removeEventListener('dragend', onDragEnd);
+  canvas.removeEventListener('webglcontextlost', onWebGLContextLost);
+  canvas.removeEventListener('webglcontextrestored', onWebGLContextRestored);
   renderer.setAnimationLoop(null);
   interactionRuntime?.dispose();
   playerFoleyRuntime?.dispose();
@@ -433,10 +521,23 @@ window.addEventListener('dragover', onDragOver);
 window.addEventListener('dragleave', onDragLeave);
 window.addEventListener('drop', onDrop);
 window.addEventListener('dragend', onDragEnd);
+canvas.addEventListener('webglcontextlost', onWebGLContextLost);
+canvas.addEventListener('webglcontextrestored', onWebGLContextRestored);
 loadTrackButton.addEventListener('click', () => trackFileInput.click());
 beginExperience.addEventListener('click', enterExperience);
 infoToggle.addEventListener('click', () => setInfoVisible(!infoPanel.classList.contains('is-visible')));
 infoClose.addEventListener('click', () => setInfoVisible(false));
+settingsToggle.addEventListener('click', () => setSettingsVisible(!settingsPanel.classList.contains('is-visible')));
+loadingRetry.addEventListener('click', () => window.location.reload());
+qualityButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const quality = button.dataset.quality;
+    if (quality !== 'Low' && quality !== 'Medium' && quality !== 'High') return;
+    adaptivePerformance?.setMode(quality);
+    storeQuality(quality);
+    syncQualitySelector();
+  });
+});
 trackFileInput.addEventListener('change', () => {
   const files = [...(trackFileInput.files ?? [])];
   if (files.length > 0) void loadTrackFiles(files);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPostProcessingSettings, limitFocusStep } from './PostProcessingRuntime';
+import { calculateCappedPixelRatio, createPostProcessingSettings, limitFocusStep } from './PostProcessingRuntime';
 
 describe('post-processing settings', () => {
   it('deep-merges partial saved settings without dropping defaults', () => {
@@ -24,5 +24,14 @@ describe('post-processing settings', () => {
   it('limits autofocus travel per frame', () => {
     expect(limitFocusStep(0.5, 8, 1.5, 0.1)).toBeCloseTo(0.65);
     expect(limitFocusStep(3, 0.2, 1, 0.25)).toBeCloseTo(2.75);
+  });
+
+  it('caps 5K output before applying the quality render scale', () => {
+    expect(calculateCappedPixelRatio(2560, 1440, 2, 1)).toBe(1.5);
+    expect(calculateCappedPixelRatio(2560, 1440, 2, 0.55)).toBeCloseTo(0.825);
+  });
+
+  it('preserves normal-resolution displays', () => {
+    expect(calculateCappedPixelRatio(1920, 1080, 1, 1)).toBe(1);
   });
 });

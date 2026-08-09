@@ -4,9 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111311" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favico.svg" />
     <style>html { background: #000; }</style>
     <link rel="stylesheet" href="/src/styles/main.css" />
-    <title>Technics Player Sim</title>
+    <title>KERNWERK — Interactive 3D Demo</title>
   </head>
   <body>
     <div id="app">
@@ -18,9 +19,11 @@
             <p id="loading-label">LOADING SCENE</p>
             <div class="loading-track" aria-hidden="true"><div id="loading-progress"></div></div>
             <output id="loading-percentage">0%</output>
+            <p id="loading-error-detail"></p>
+            <button id="loading-retry" type="button">RETRY</button>
           </div>
           <div id="loading-ready" aria-hidden="true">
-            <h1>Interactive Hi-Fi Product Study</h1>
+            <h1>Interactive 3D Audio System</h1>
             <p>A fictional compact stereo system explored in real time.</p>
             <div class="loading-ready-line" aria-hidden="true"></div>
             <button id="begin-experience" type="button">BEGIN</button>
@@ -47,7 +50,10 @@
           <span>FLAC / WAV / MP3</span>
         </div>
       </div>
-      <button id="info-toggle" type="button" aria-label="About this experience" aria-expanded="false" title="Information">i</button>
+      <div id="utility-controls">
+        <button id="info-toggle" type="button" aria-label="About this experience" aria-expanded="false" title="Information">i</button>
+        <button id="settings-toggle" type="button" aria-label="Graphics settings" aria-expanded="false" title="Settings"><span aria-hidden="true">&#9881;</span></button>
+      </div>
       <aside id="info-panel" aria-hidden="true" aria-label="Experience information">
         <div class="info-heading">
           <h2>INFO</h2>
@@ -65,7 +71,20 @@
           <p><a href="https://pixabay.com/music/traditional-jazz-smoked-glass-keys-piano-dark-jazz-504005/" target="_blank" rel="noreferrer">Surprising_Media<br />&ldquo;Smoked Glass Keys (piano dark jazz)&rdquo;</a><br /><span>Pixabay Content License</span></p>
           <p><a href="https://creatorchords.com/music/circuits/" target="_blank" rel="noreferrer">Alexander Nakarada<br />&ldquo;Circuits&rdquo;</a><br /><span>CC BY 4.0</span></p>
         </section>
-        <p class="info-disclaimer">Independent product concept.<br />Not affiliated with Technics, ELAC,<br />or their respective owners.</p>
+        <p class="info-disclaimer">KERNWERK is fictional branding created for this demonstration. The featured hardware is a digital interpretation of products by Technics and ELAC. This project is not affiliated with real brands, or their respective rights holders.</p>
+      </aside>
+      <aside id="settings-panel" aria-hidden="true" aria-label="Graphics settings">
+        <div class="settings-heading">
+          <h2>GRAPHICS</h2>
+        </div>
+        <div class="quality-setting">
+          <span>QUALITY</span>
+          <div id="quality-selector" role="radiogroup" aria-label="Graphics quality">
+            <button type="button" data-quality="Low" role="radio" aria-checked="false">LOW</button>
+            <button type="button" data-quality="Medium" role="radio" aria-checked="false">MED</button>
+            <button type="button" data-quality="High" role="radio" aria-checked="false">HIGH</button>
+          </div>
+        </div>
       </aside>
       <div id="cursor-ring" aria-hidden="true"></div>
       <button id="load-track" type="button" disabled>LOAD TRACK</button>

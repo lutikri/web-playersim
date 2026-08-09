@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isSupportedTrackFile, receiverVolumeToGain, timeDomainRms } from './TrackRuntime';
+import {
+  isSupportedTrackFile,
+  receiverVolumeToGain,
+  timeDomainRms,
+  validateTrackCount,
+  validateTrackDuration,
+} from './TrackRuntime';
 
 describe('track file selection', () => {
   it('accepts the requested audio extensions case-insensitively', () => {
@@ -7,6 +13,13 @@ describe('track file selection', () => {
     expect(isSupportedTrackFile({ name: 'track.wav' })).toBe(true);
     expect(isSupportedTrackFile({ name: 'track.mp3' })).toBe(true);
     expect(isSupportedTrackFile({ name: 'cover.png' })).toBe(false);
+  });
+
+  it('limits user-created discs to 20 tracks of at most 15 minutes', () => {
+    expect(() => validateTrackCount(20)).not.toThrow();
+    expect(() => validateTrackCount(21)).toThrow(/20 tracks/);
+    expect(() => validateTrackDuration(900, 'track.flac')).not.toThrow();
+    expect(() => validateTrackDuration(901, 'track.flac')).toThrow(/15 minutes/);
   });
 
   it('maps the receiver 00-99 scale to a nonlinear Web Audio gain', () => {
