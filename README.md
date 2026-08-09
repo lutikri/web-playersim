@@ -139,7 +139,7 @@ TypeScript, Three.js, Rapier, Web Audio API, lil-gui, and Vite. The production s
 
 ## Credits
 
-Design and development by [Artem Lut](https://www.linkedin.com/in/artemlut/). More work is available on [Behance](https://www.behance.net/artem_lut) and [GitHub](https://github.com/lutikri).
+Design and development by [Artem Lut](https://www.linkedin.com/in/artemlut/). More work is available on [Behance](https://www.behance.net/artem_lut)
 
 Music featured in the demo:
 
