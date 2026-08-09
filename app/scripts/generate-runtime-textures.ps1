@@ -9,11 +9,14 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-$Root = Split-Path -Parent $PSScriptRoot
-$SourceDirectory = Join-Path $Root 'assets-source\textures'
-$OutputDirectory = Join-Path $Root 'assets\runtime-textures'
+$ProjectDirectory = Split-Path -Parent $PSScriptRoot
+$RepositoryDirectory = Split-Path -Parent $ProjectDirectory
+$SourceDirectory = Join-Path $RepositoryDirectory 'assets-source\textures'
+$OutputDirectory = Join-Path $ProjectDirectory 'assets\runtime-textures'
 $TemporaryDirectory = Join-Path $OutputDirectory "_tmp_$PID"
-$Basisu = Join-Path $Root 'node_modules\basisu\bin\win\x64_sse\basisu.exe'
+$ProjectBasisu = Join-Path $ProjectDirectory 'node_modules\basisu\bin\win\x64_sse\basisu.exe'
+$LegacyBasisu = Join-Path $RepositoryDirectory 'node_modules\basisu\bin\win\x64_sse\basisu.exe'
+$Basisu = if (Test-Path -LiteralPath $ProjectBasisu) { $ProjectBasisu } else { $LegacyBasisu }
 
 if (!(Test-Path -LiteralPath $Basisu)) {
   throw 'Missing basisu encoder. Run npm install first.'

@@ -3,9 +3,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$Root = Split-Path -Parent $PSScriptRoot
-$SourceDirectory = Join-Path $Root 'assets-source\audio'
-$OutputDirectory = Join-Path $Root 'assets\audio'
+$ProjectDirectory = Split-Path -Parent $PSScriptRoot
+$RepositoryDirectory = Split-Path -Parent $ProjectDirectory
+$SourceDirectory = Join-Path $RepositoryDirectory 'assets-source\audio'
+$OutputDirectory = Join-Path $ProjectDirectory 'assets\audio'
 $Ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
 
 if ($null -eq $Ffmpeg) {

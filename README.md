@@ -1,7 +1,7 @@
 # KERNWERK
 
 <div align="center">
-  <img src="assets/favico.svg" width="72" height="72" alt="KERNWERK mark">
+  <img src="app/assets/favico.svg" width="72" height="72" alt="KERNWERK mark">
   <h3>Interactive 3D Audio System</h3>
   <p>A real-time product study built around a fictional compact stereo system.</p>
   <p><a href="https://lutikri.github.io/web-playersim/"><strong>Launch the live experience</strong></a></p>
@@ -47,6 +47,7 @@ The file picker accepts up to 20 tracks per disc, with a maximum duration of 15 
 Requirements: a current Node.js release and npm.
 
 ```bash
+cd app
 npm install
 npm run dev
 ```
@@ -72,7 +73,7 @@ npm run check
 
 ## Asset Pipeline
 
-Editable source assets live in the ignored `assets-source/` directory. Browser-ready models, textures, and audio are generated or copied into `assets/` and committed so GitHub Pages can serve the project directly.
+Editable source assets live in the ignored root-level `assets-source/` directory. Browser-ready models, textures, and audio are generated or copied into `app/assets/` and committed so GitHub Pages can serve the project directly.
 
 | Command | Purpose |
 | --- | --- |
@@ -86,19 +87,20 @@ Texture generation uses KTX2/Basis Universal profiles chosen per map type. The a
 ## Project Structure
 
 ```text
-assets/                  Runtime GLB, KTX2, image, and audio files
+app/                     Vite application and runtime assets
+app/assets/              Runtime GLB, KTX2, image, and audio files
+app/scripts/             Texture and audio preparation tools
+app/src/config/          Saved level configuration
+app/src/app/             Shared application state
+app/src/scene/           Scene, camera, materials, streaming, and presentation
+app/src/receiver/        Player, disc, speaker, and display behavior
+app/src/interaction/     Pointer interaction and custom cursor
+app/src/physics/         Rapier world and physical dragging
+app/src/audio/           Track playback and player foley
+app/src/performance/     Startup measurement and adaptive quality
+app/src/postprocessing/  Render effects and quality-aware composition
+app/src/debug/           Level, object, light, and material editor
 docs/images/             README media
-scripts/                 Texture and audio preparation tools
-src/config/              Saved level configuration
-src/app/                 Shared application state
-src/scene/               Scene, camera, materials, streaming, and presentation
-src/receiver/            Player, disc, speaker, and display behavior
-src/interaction/         Pointer interaction and custom cursor
-src/physics/             Rapier world and physical dragging
-src/audio/               Track playback and player foley
-src/performance/         Startup measurement and adaptive quality
-src/postprocessing/      Render effects and quality-aware composition
-src/debug/               Level, object, light, and material editor
 ```
 
 Runtime state is coordinated through a small store. `SceneRuntime` owns the Three.js scene and prefab assembly; dedicated runtimes handle player behavior, discs, speakers, camera presentation, Rapier interaction, Web Audio, post-processing, adaptive quality, and the debug editor.
@@ -119,11 +121,11 @@ kernwerk.loading();
 kernwerk.quality('Auto'); // Auto, Ultra, High, Medium, or Low
 ```
 
-When running through the Vite development server, the editor's save action writes level overrides to `src/config/level-config.json`. In a static production deployment it exports the configuration instead.
+When running through the Vite development server, the editor's save action writes level overrides to `app/src/config/level-config.json`. In a static production deployment it exports the configuration instead.
 
 ## Scene Conventions
 
-The environment is authored in `assets/enviroment/Scene0.glb`; reusable objects live in `assets/Prefabs/`. Blender node names form the runtime contract:
+The environment is authored in `app/assets/enviroment/Scene0.glb`; reusable objects live in `app/assets/Prefabs/`. Blender node names form the runtime contract:
 
 - `PF_*` nodes mark prefab placement
 - `UBX_*` and `UCX_*` nodes provide simplified colliders
@@ -137,9 +139,17 @@ Keep these names stable when re-exporting GLB files. Level-editor transforms may
 
 TypeScript, Three.js, Rapier, Web Audio API, lil-gui, and Vite. The production site is deployed to GitHub Pages through the workflow in `.github/workflows/deploy-pages.yml`.
 
+## License
+
+The source code is licensed under the [Apache License 2.0](LICENSE). Redistributed versions must preserve the license, attribution notices, and the project [NOTICE](NOTICE), and modified files must be identified as changed.
+
+Original visual assets are available under [CC BY 4.0](ASSETS-LICENSE.md) with attribution to Artem Lut, a link to this repository, and an indication of modifications. The KERNWERK name and identity are not licensed for branding derived projects or implying endorsement.
+
+Music, referenced product designs, trademarks, and other third-party material are excluded from those grants and remain subject to their [respective notices](THIRD_PARTY_NOTICES.md).
+
 ## Credits
 
-Design and development by [Artem Lut](https://www.linkedin.com/in/artemlut/). More work is available on [Behance](https://www.behance.net/artem_lut)
+Design and development by [Artem Lut](https://www.linkedin.com/in/artemlut/). Selected work is available on [Behance](https://www.behance.net/artem_lut).
 
 Music featured in the demo:
 
