@@ -129,11 +129,12 @@ function enterExperience(): void {
   waitingForExperience = false;
   cameraNavigation?.playIntro();
   tutorialRuntime?.start();
+  window.setTimeout(() => textureStreaming.startDeferredUpgrades(), 1_200);
   loading.classList.add('is-entering');
   window.setTimeout(() => {
     loading.classList.add('is-hidden');
     loading.setAttribute('aria-hidden', 'true');
-  }, 1_050);
+  }, 3_350);
 }
 
 function setDebugMode(enabled: boolean): boolean {
@@ -318,10 +319,14 @@ async function start(): Promise<void> {
       loadTrackButton,
     );
     loadTrackButton.disabled = false;
-    textureStreaming.startDeferredUpgrades();
-    const finishMediumTextures = startupTimings.start('Medium texture tier prewarm');
+    const startupTexturePriority = 20;
+    textureStreaming.startDeferredUpgrades(startupTexturePriority);
+    const finishMediumTextures = startupTimings.start('Player medium textures prewarm');
     await Promise.all([
-      textureStreaming.prewarmMediumTier((progress) => setLoadingProgress(0.88 + progress * 0.02)).finally(finishMediumTextures),
+      textureStreaming.prewarmMediumTier(
+        (progress) => setLoadingProgress(0.88 + progress * 0.02),
+        { minPriority: startupTexturePriority },
+      ).finally(finishMediumTextures),
       delay(900),
     ]);
     loadingLabel.textContent = 'ADJUSTING PERFORMANCE';

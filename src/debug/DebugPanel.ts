@@ -50,8 +50,8 @@ function lightProperties(light: EditableLight): Record<string, boolean | number 
 }
 
 export class DebugPanel {
-  private readonly gui = new GUI({ title: 'LEVEL EDITOR', width: 310 });
-  private readonly propertiesGui = new GUI({ title: 'PROPERTIES', width: 310 });
+  private readonly gui = new GUI({ title: 'LEVEL EDITOR', width: 388 });
+  private readonly propertiesGui = new GUI({ title: 'PROPERTIES', width: 388 });
   private readonly objectsFolder = this.gui.addFolder('Prefabs / Objects');
   private readonly lightsFolder = this.gui.addFolder('Lights');
   private readonly materialsFolder = this.gui.addFolder('Materials');

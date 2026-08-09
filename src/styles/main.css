@@ -35,14 +35,14 @@ button {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 32px;
+  padding: 40px;
   z-index: 1000;
   background-color: #000;
   box-shadow: inset 0 190px 240px -190px rgb(255 255 255 / 17%);
   color: #e5e9e5;
   letter-spacing: 0;
-  transition: opacity 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms,
-    visibility 1.02s linear,
+  transition: opacity 3200ms cubic-bezier(0.22, 1, 0.36, 1) 100ms,
+    visibility 3300ms linear,
     background-color 900ms cubic-bezier(0.22, 1, 0.36, 1),
     backdrop-filter 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -60,6 +60,11 @@ button {
 #loading.is-entering .loading-content {
   opacity: 0;
   transform: translateY(-5px);
+  transition: opacity 520ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#loading.is-entering {
+  opacity: 0;
 }
 
 #loading.is-entering,
@@ -73,11 +78,11 @@ button {
 
 .loading-content {
   position: relative;
-  width: min(550px, calc(100vw - 40px));
-  min-height: 312px;
+  width: min(688px, calc(100vw - 50px));
+  min-height: 390px;
   display: grid;
   align-content: center;
-  padding: 42px 45px 40px;
+  padding: 53px 56px 50px;
   border: 1px solid rgb(229 236 232 / 15%);
   border-radius: 4px;
   background: rgb(5 7 7 / 68%);
@@ -88,18 +93,18 @@ button {
 
 .loading-brand {
   position: absolute;
-  top: 42px;
-  left: 45px;
+  top: 53px;
+  left: 56px;
   margin: 0;
   color: rgb(241 244 241 / 92%);
-  font: 600 11px/1.2 Inter, "Segoe UI", sans-serif;
+  font: 600 14px/1.2 Inter, "Segoe UI", sans-serif;
   text-transform: uppercase;
 }
 
 #loading-label {
-  margin: 0 0 14px;
+  margin: 0 0 18px;
   color: rgb(222 227 223 / 68%);
-  font: 500 10px/1 Inter, "Segoe UI", sans-serif;
+  font: 500 13px/1 Inter, "Segoe UI", sans-serif;
   text-transform: uppercase;
 }
 
@@ -119,9 +124,9 @@ button {
 
 #loading-percentage {
   display: block;
-  margin-top: 11px;
+  margin-top: 14px;
   color: rgb(238 241 238 / 84%);
-  font: 500 11px/1 "SFMono-Regular", Consolas, monospace;
+  font: 500 14px/1 "SFMono-Regular", Consolas, monospace;
 }
 
 #loading-state {
@@ -131,7 +136,7 @@ button {
 
 #loading-ready {
   position: absolute;
-  inset: 110px 45px 40px;
+  inset: 138px 56px 50px;
   display: grid;
   align-content: start;
   opacity: 0;
@@ -141,23 +146,23 @@ button {
 }
 
 #loading-ready h1 {
-  max-width: 320px;
+  max-width: 400px;
   margin: 0;
   color: rgb(244 246 243 / 96%);
-  font: 500 20px/1.2 Inter, "Segoe UI", sans-serif;
+  font: 500 25px/1.2 Inter, "Segoe UI", sans-serif;
 }
 
 #loading-ready > p {
-  max-width: 340px;
-  margin: 11px 0 0;
+  max-width: 425px;
+  margin: 14px 0 0;
   color: rgb(220 225 221 / 58%);
-  font: 400 12px/1.5 Inter, "Segoe UI", sans-serif;
+  font: 400 15px/1.5 Inter, "Segoe UI", sans-serif;
 }
 
 .loading-ready-line {
-  width: 74px;
+  width: 93px;
   height: 1px;
-  margin-top: 24px;
+  margin-top: 30px;
   background: rgb(240 243 239 / 62%);
   transform: scaleX(0);
   transform-origin: left;
@@ -166,13 +171,13 @@ button {
 
 #begin-experience {
   justify-self: start;
-  margin-top: 20px;
-  padding: 9px 18px;
+  margin-top: 25px;
+  padding: 11px 23px;
   border: 1px solid rgb(232 237 233 / 26%);
   border-radius: 3px;
   background: rgb(255 255 255 / 3%);
   color: rgb(242 245 242 / 92%);
-  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 13px/1 Inter, "Segoe UI", sans-serif;
   cursor: pointer;
   transition: color 180ms ease, background 180ms ease, border-color 180ms ease, opacity 240ms ease;
 }
@@ -186,9 +191,9 @@ button {
 }
 
 #loading-ready small {
-  margin-top: 18px;
+  margin-top: 23px;
   color: rgb(215 221 216 / 42%);
-  font: 500 9px/1.3 Inter, "Segoe UI", sans-serif;
+  font: 500 11px/1.3 Inter, "Segoe UI", sans-serif;
 }
 
 #loading.is-ready #loading-state {
@@ -197,7 +202,7 @@ button {
 }
 
 #loading.is-ready .loading-content {
-  min-height: 444px;
+  min-height: 555px;
 }
 
 #loading.is-ready #loading-ready {
@@ -222,22 +227,23 @@ button {
 
 @media (max-width: 520px) {
   .loading-content {
-    min-height: 270px;
-    padding: 28px 26px;
+    width: calc(100vw - 30px);
+    min-height: 338px;
+    padding: 35px 33px;
   }
 
   .loading-brand {
-    top: 28px;
-    left: 26px;
+    top: 35px;
+    left: 33px;
   }
 
   #loading-ready {
-    inset: 80px 26px 28px;
+    inset: 100px 33px 35px;
   }
 
 
   #loading.is-ready .loading-content {
-    min-height: 370px;
+    min-height: min(463px, calc(100vh - 30px));
   }
 }
 
@@ -291,14 +297,14 @@ button {
 
 .tutorial-subtitle {
   position: absolute;
-  bottom: 66px;
+  bottom: 83px;
   left: 50%;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  width: min(560px, calc(100vw - 36px));
-  min-height: 42px;
-  padding: 10px 12px 10px 14px;
+  width: min(700px, calc(100vw - 45px));
+  min-height: 53px;
+  padding: 13px 15px 13px 18px;
   transform: translateX(-50%);
   border-top: 1px solid rgb(239 244 240 / 18%);
   border-bottom: 1px solid rgb(239 244 240 / 10%);
@@ -309,25 +315,25 @@ button {
 }
 
 #tutorial-step {
-  min-width: 48px;
+  min-width: 60px;
   color: rgb(222 228 223 / 38%);
-  font: 500 9px/1 "SFMono-Regular", Consolas, monospace;
+  font: 500 11px/1 "SFMono-Regular", Consolas, monospace;
 }
 
 #tutorial-message {
   margin: 0;
   color: rgb(242 245 242 / 88%);
-  font: 500 11px/1.35 Inter, "Segoe UI", sans-serif;
+  font: 500 14px/1.35 Inter, "Segoe UI", sans-serif;
   text-align: center;
 }
 
 #tutorial-skip {
-  min-width: 48px;
-  padding: 7px 4px;
+  min-width: 60px;
+  padding: 9px 5px;
   border: 0;
   background: transparent;
   color: rgb(219 225 220 / 38%);
-  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 11px/1 Inter, "Segoe UI", sans-serif;
   cursor: pointer;
   transition: color 160ms ease;
 }
@@ -371,7 +377,7 @@ button {
 
 #track-drop-overlay {
   position: fixed;
-  inset: 16px;
+  inset: 20px;
   z-index: 900;
   display: grid;
   place-items: center;
@@ -393,33 +399,33 @@ button {
 
 .track-drop-copy {
   display: grid;
-  gap: 12px;
+  gap: 15px;
   text-align: center;
 }
 
 .track-drop-copy strong {
   color: rgb(246 248 245 / 92%);
-  font: 600 12px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 15px/1 Inter, "Segoe UI", sans-serif;
 }
 
 .track-drop-copy span {
   color: rgb(218 224 219 / 44%);
-  font: 500 9px/1 "SFMono-Regular", Consolas, monospace;
+  font: 500 11px/1 "SFMono-Regular", Consolas, monospace;
 }
 
 #info-toggle {
   position: fixed;
-  top: 14px;
-  right: 16px;
+  top: 18px;
+  right: 20px;
   z-index: 72;
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: 1px solid rgb(238 243 239 / 20%);
   border-radius: 50%;
   background: rgb(7 9 8 / 58%);
   color: rgb(239 243 239 / 72%);
-  font: 500 13px/1 Georgia, serif;
+  font: 500 16px/1 Georgia, serif;
   cursor: pointer;
   backdrop-filter: blur(14px);
   transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
@@ -434,13 +440,13 @@ button {
 
 #info-panel {
   position: fixed;
-  top: 14px;
-  right: 58px;
+  top: 18px;
+  right: 73px;
   z-index: 71;
-  width: min(370px, calc(100vw - 76px));
-  max-height: calc(100vh - 28px);
+  width: min(463px, calc(100vw - 95px));
+  max-height: calc(100vh - 35px);
   overflow: auto;
-  padding: 25px 26px 24px;
+  padding: 31px 33px 30px;
   transform: translateX(8px);
   border: 1px solid rgb(229 236 232 / 16%);
   border-radius: 4px;
@@ -465,22 +471,22 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 16px;
+  padding-bottom: 20px;
   border-bottom: 1px solid rgb(231 237 232 / 12%);
 }
 
 .info-heading h2,
 .info-music h3 {
   margin: 0;
-  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 13px/1 Inter, "Segoe UI", sans-serif;
 }
 
 #info-close {
-  padding: 4px 0;
+  padding: 5px 0;
   border: 0;
   background: transparent;
   color: rgb(220 226 221 / 42%);
-  font: 600 8px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
   cursor: pointer;
 }
 
@@ -489,21 +495,21 @@ button {
 }
 
 .info-intro {
-  margin: 22px 0 0;
+  margin: 28px 0 0;
   color: rgb(232 236 232 / 76%);
-  font: 400 12px/1.55 Inter, "Segoe UI", sans-serif;
+  font: 400 15px/1.55 Inter, "Segoe UI", sans-serif;
 }
 
 .info-tech {
-  margin: 18px 0 0;
+  margin: 23px 0 0;
   color: rgb(205 213 207 / 48%);
-  font: 600 8px/1.3 "SFMono-Regular", Consolas, monospace;
+  font: 600 10px/1.3 "SFMono-Regular", Consolas, monospace;
 }
 
 .info-links {
   display: flex;
-  gap: 18px;
-  margin-top: 18px;
+  gap: 23px;
+  margin-top: 23px;
 }
 
 .info-links a,
@@ -514,7 +520,7 @@ button {
 }
 
 .info-links a {
-  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 11px/1 Inter, "Segoe UI", sans-serif;
 }
 
 .info-links a:hover,
@@ -523,35 +529,35 @@ button {
 }
 
 .info-music {
-  margin-top: 27px;
-  padding-top: 20px;
+  margin-top: 34px;
+  padding-top: 25px;
   border-top: 1px solid rgb(231 237 232 / 12%);
 }
 
 .info-music p {
-  margin: 17px 0 0;
-  font: 400 11px/1.5 Inter, "Segoe UI", sans-serif;
+  margin: 21px 0 0;
+  font: 400 14px/1.5 Inter, "Segoe UI", sans-serif;
 }
 
 .info-music span {
   color: rgb(205 213 207 / 42%);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .info-disclaimer {
-  margin: 27px 0 0;
-  padding-top: 20px;
+  margin: 34px 0 0;
+  padding-top: 25px;
   border-top: 1px solid rgb(231 237 232 / 12%);
   color: rgb(205 213 207 / 46%);
-  font: 400 10px/1.5 Inter, "Segoe UI", sans-serif;
+  font: 400 13px/1.5 Inter, "Segoe UI", sans-serif;
 }
 
 .product-card {
   position: absolute;
   top: 0;
   left: 0;
-  width: min(336px, calc(100vw - 36px));
-  padding: 24px 24px 22px;
+  width: min(420px, calc(100vw - 45px));
+  padding: 30px 30px 28px;
   border: 1px solid rgb(229 236 232 / 16%);
   border-radius: 4px;
   background: rgb(5 7 7 / 72%);
@@ -600,21 +606,21 @@ button {
 }
 
 .product-card__heading {
-  padding-bottom: 19px;
+  padding-bottom: 24px;
   border-bottom: 1px solid rgb(229 236 232 / 12%);
 }
 
 .product-card__name {
   margin: 0;
   color: #f4f5f1;
-  font: 560 27px/1.05 "Segoe UI", Arial, sans-serif;
+  font: 560 34px/1.05 "Segoe UI", Arial, sans-serif;
   letter-spacing: 0;
 }
 
 .product-card__type {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   color: rgb(205 213 207 / 62%);
-  font: 600 9px/1.3 "Segoe UI", Arial, sans-serif;
+  font: 600 11px/1.3 "Segoe UI", Arial, sans-serif;
   letter-spacing: 0;
   white-space: pre-line;
 }
@@ -622,8 +628,8 @@ button {
 .product-card__specs {
   display: grid;
   grid-template-columns: 1.45fr 1fr;
-  gap: 17px 18px;
-  margin: 20px 0 0;
+  gap: 21px 23px;
+  margin: 25px 0 0;
 }
 
 .product-card__spec {
@@ -637,31 +643,31 @@ button {
 
 .product-card__spec dd {
   color: rgb(242 245 241 / 91%);
-  font: 430 15px/1.15 "Segoe UI", Arial, sans-serif;
+  font: 430 19px/1.15 "Segoe UI", Arial, sans-serif;
   white-space: nowrap;
 }
 
 .product-card__spec dt {
-  margin-top: 5px;
+  margin-top: 6px;
   color: rgb(196 205 199 / 46%);
-  font: 500 8px/1.25 "Segoe UI", Arial, sans-serif;
+  font: 500 10px/1.25 "Segoe UI", Arial, sans-serif;
   text-transform: uppercase;
 }
 
 .product-card__description {
-  margin: 22px 0 0;
-  padding-top: 18px;
+  margin: 28px 0 0;
+  padding-top: 23px;
   border-top: 1px solid rgb(229 236 232 / 10%);
   color: rgb(220 226 221 / 66%);
-  font: 400 12px/1.55 "Segoe UI", Arial, sans-serif;
+  font: 400 15px/1.55 "Segoe UI", Arial, sans-serif;
 }
 
 .product-card--detail {
-  width: min(292px, calc(100vw - 36px));
+  width: min(365px, calc(100vw - 45px));
 }
 
 .product-card--detail .product-card__name {
-  font-size: 32px;
+  font-size: 40px;
   font-weight: 480;
 }
 
@@ -676,8 +682,8 @@ button {
 
 .camera-hotspot {
   position: absolute;
-  width: 26px;
-  height: 26px;
+  width: 33px;
+  height: 33px;
   padding: 0;
   transform: translate(-50%, -50%);
   border: 1px solid rgb(255 255 255 / 78%);
@@ -705,7 +711,7 @@ button {
 .camera-hotspot::after {
   content: "";
   position: absolute;
-  inset: 8px;
+  inset: 10px;
   border-radius: 50%;
   background: rgb(255 255 255 / 88%);
 }
@@ -718,7 +724,7 @@ button {
 #camera-back {
   position: fixed;
   top: auto;
-  bottom: 18px;
+  bottom: 23px;
   left: 50%;
   transform: translate(-50%, 8px);
   opacity: 0;
@@ -736,22 +742,22 @@ button {
 
 #load-track {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: 23px;
+  bottom: 23px;
   left: auto;
-  min-width: 108px;
+  min-width: 135px;
 }
 
 #camera-back,
 #load-track {
-  height: 30px;
-  padding: 0 13px;
+  height: 38px;
+  padding: 0 16px;
   border: 1px solid rgb(238 243 239 / 20%);
   border-radius: 3px;
   background: rgb(7 9 8 / 58%);
   box-shadow: inset 0 1px rgb(255 255 255 / 4%), 0 8px 24px rgb(0 0 0 / 14%);
   color: rgb(239 243 239 / 72%);
-  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 11px/1 Inter, "Segoe UI", sans-serif;
   cursor: pointer;
   backdrop-filter: blur(14px) saturate(108%);
 }
@@ -781,8 +787,8 @@ button {
   top: 0;
   left: 0;
   z-index: 1200;
-  width: 18px;
-  height: 18px;
+  width: 23px;
+  height: 23px;
   border-radius: 50%;
   border: 1px solid rgb(255 255 255 / 68%);
   background: rgb(12 14 13 / 10%);
@@ -802,8 +808,8 @@ html.is-loading-input #cursor-ring {
 }
 
 #cursor-ring.is-active {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   background: rgb(255 255 255 / 12%);
 }
 
@@ -832,6 +838,10 @@ html.is-loading-input #cursor-ring {
   --text-color: #e9ede8;
   --number-color: #8dd7bc;
   --string-color: #f4c381;
+  --font-size: 14px;
+  --input-font-size: 14px;
+  --widget-height: 25px;
+  --title-height: 31px;
   top: 12px;
   right: 12px;
   max-height: calc(100vh - 24px);
@@ -852,34 +862,34 @@ html.is-loading-input #cursor-ring {
 
 @media (max-width: 600px) {
   .product-card {
-    width: min(300px, calc(100vw - 28px));
-    padding: 20px;
+    width: min(375px, calc(100vw - 28px));
+    padding: 25px;
   }
 
   .product-card__name {
-    font-size: 23px;
+    font-size: 29px;
   }
 
   .tutorial-subtitle {
-    bottom: 62px;
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
-    padding-inline: 9px;
+    bottom: 78px;
+    grid-template-columns: 50px minmax(0, 1fr) 50px;
+    padding-inline: 11px;
   }
 
   #tutorial-step,
   #tutorial-skip {
-    min-width: 40px;
+    min-width: 50px;
   }
 
   #tutorial-message {
-    font-size: 10px;
+    font-size: 13px;
   }
 
   #info-panel {
-    top: 52px;
-    right: 14px;
-    width: calc(100vw - 28px);
-    max-height: calc(100vh - 66px);
+    top: 65px;
+    right: 18px;
+    width: calc(100vw - 36px);
+    max-height: calc(100vh - 83px);
   }
 
   .lil-gui.root.debug-level-panel,

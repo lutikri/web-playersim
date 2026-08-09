@@ -31,6 +31,11 @@ export interface TextureStreamHandle {
   dispose(): void;
 }
 
+export interface TexturePrewarmOptions {
+  minPriority?: number;
+  timeoutMs?: number;
+}
+
 interface StreamRegistration {
   cancelled: boolean;
   currentMaps: TextureMaps;
@@ -64,6 +69,7 @@ export class TextureStreamingRuntime {
   private readonly queue: UpgradeJob[] = [];
   private activeUpgrade = false;
   private deferredUpgradesEnabled = false;
+  private deferredPriorityFloor = Number.NEGATIVE_INFINITY;
   private disposed = false;
   private cinematicModeValue = false;
 
@@ -134,17 +140,23 @@ export class TextureStreamingRuntime {
     this.startNextUpgrade();
   }
 
-  startDeferredUpgrades(): void {
+  startDeferredUpgrades(minPriority = Number.NEGATIVE_INFINITY): void {
     this.deferredUpgradesEnabled = true;
+    this.deferredPriorityFloor = minPriority;
   }
 
   async prewarmMediumTier(
     onProgress?: (progress: number) => void,
-    timeoutMs = 60_000,
+    options: TexturePrewarmOptions = {},
   ): Promise<void> {
+    const minPriority = options.minPriority ?? Number.NEGATIVE_INFINITY;
+    const timeoutMs = options.timeoutMs ?? 60_000;
     const startedAt = performance.now();
     while (!this.disposed) {
-      const mediumStreams = [...this.registrations].filter((registration) => registration.definition.medium);
+      const mediumStreams = [...this.registrations].filter((registration) => (
+        registration.definition.medium
+        && (registration.options.priority ?? 0) >= minPriority
+      ));
       const completed = mediumStreams.filter((registration) => registration.mediumSettled).length;
       onProgress?.(mediumStreams.length === 0 ? 1 : completed / mediumStreams.length);
       if (completed === mediumStreams.length || performance.now() - startedAt >= timeoutMs) return;
@@ -180,7 +192,9 @@ export class TextureStreamingRuntime {
 
   private startNextUpgrade(): void {
     if (this.activeUpgrade || this.queue.length === 0) return;
-    const job = this.queue.shift();
+    const jobIndex = this.queue.findIndex((candidate) => candidate.priority >= this.deferredPriorityFloor);
+    if (jobIndex < 0) return;
+    const [job] = this.queue.splice(jobIndex, 1);
     if (!job || job.registration.cancelled) {
       this.startNextUpgrade();
       return;

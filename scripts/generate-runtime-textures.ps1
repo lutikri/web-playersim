@@ -20,8 +20,8 @@ if (!(Test-Path -LiteralPath $Basisu)) {
 }
 
 $Jobs = @(
-  @{ Source = 'T_Player1_BaseColor.png'; Name = 'T_Player1_BaseColor'; Mode = 'srgb'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
-  @{ Source = 'T_Player1_Normal.png'; Name = 'T_Player1_Normal'; Mode = 'normal'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Player1_BaseColor.png'; Name = 'T_Player1_BaseColor'; Mode = 'srgb'; Profile4K = 'etc1s-hq'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
+  @{ Source = 'T_Player1_Normal.png'; Name = 'T_Player1_Normal'; Mode = 'normal'; Profile4K = 'etc1s-hq'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
   @{ Source = 'T_Player1_OcclusionRoughnessMetallic.png'; Name = 'T_Player1_ORM'; Mode = 'linear'; CinematicTier = '8K'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
   @{ Source = 'T_PodiumMat1_BaseColor.png'; Name = 'T_PodiumMat1_BaseColor'; Mode = 'srgb'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
   @{ Source = 'T_PodiumMat1_Normal.tif'; Name = 'T_PodiumMat1_Normal'; Mode = 'normal'; Tiers = @{ '1K' = 1024; '4K' = 4096 } },
