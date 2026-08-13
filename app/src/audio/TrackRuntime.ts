@@ -11,12 +11,14 @@ const SPEAKER_CROSSOVER_HZ = 2200;
 const BUNDLED_DISCS = [
   {
     title: 'CIRCUITS',
+    artist: 'Alexander Nakarada',
     durationSeconds: 349.875011,
     marker: 'PF_ExampleDisk1',
     url: new URL('../../assets/audio/Circuits.ogg', import.meta.url).href,
   },
   {
     title: 'AFTER HOURS',
+    artist: 'Surprising_Media',
     durationSeconds: 634.056,
     marker: 'PF_ExampleDisk2',
     url: new URL('../../assets/audio/AfterHours.ogg', import.meta.url).href,
@@ -185,6 +187,7 @@ export class TrackRuntime {
     if (generation !== this.operationGeneration) return;
     const discId = ++this.discId;
     const titles = loaded.map(({ file, metadata }) => metadata?.common.title?.trim() || file.name.replace(/\.[^.]+$/, ''));
+    const artists = loaded.map(({ metadata }) => metadata?.common.artist?.trim());
     const embeddedCover = loaded.find((item) => item.cover)?.cover ?? null;
     const cover = embeddedCover ?? await createFallbackCover(titles[0] ?? 'UNTITLED', loaded.length);
     const disc = await this.sceneRuntime.spawnDisc(discId, cover);
@@ -198,6 +201,7 @@ export class TrackRuntime {
       tracks: loaded.map(({ buffer, cover: trackCover }, index) => ({
         id: ++this.trackId,
         title: titles[index],
+        artist: artists[index],
         durationSeconds: buffer.duration,
         hasCover: trackCover !== null,
       })),
@@ -218,6 +222,7 @@ export class TrackRuntime {
         tracks: [{
           id: ++this.trackId,
           title: definition.title,
+          artist: definition.artist,
           durationSeconds: definition.durationSeconds,
           hasCover: false,
         }],

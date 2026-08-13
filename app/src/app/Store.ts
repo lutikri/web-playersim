@@ -8,6 +8,7 @@ export type PlaybackState = 'stopped' | 'playing' | 'paused';
 export interface TrackInfo {
   id: number;
   title: string;
+  artist?: string;
   durationSeconds: number;
   hasCover: boolean;
 }

@@ -1167,3 +1167,380 @@ html.is-loading-input #cursor-ring {
     width: calc(50vw - 18px) !important;
   }
 }
+
+/* Product interface chrome */
+#experience-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 54px;
+  padding: 0 22px;
+  border-bottom: 1px solid rgb(232 237 233 / 11%);
+  background: rgb(2 3 3 / 86%);
+  color: rgb(239 243 239 / 76%);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 700ms ease 300ms, transform 900ms cubic-bezier(0.22, 1, 0.36, 1) 300ms, visibility 700ms ease 300ms;
+}
+
+html.is-experience-active #experience-header {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.experience-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.experience-brand img {
+  width: 21px;
+  height: 21px;
+  opacity: 0.86;
+}
+
+.experience-brand span {
+  color: rgb(247 249 246 / 88%);
+  font: 600 11px/1 Inter, "Segoe UI", sans-serif;
+}
+
+.experience-actions {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.experience-actions button {
+  position: static;
+  width: auto;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 17px;
+  border: 0;
+  border-left: 1px solid rgb(232 237 233 / 8%);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgb(223 229 224 / 52%);
+  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+/* The original utility buttons used ID selectors. Keep the header authoritative. */
+.experience-actions #load-track,
+.experience-actions #info-toggle,
+.experience-actions #settings-toggle,
+.experience-actions #fullscreen-toggle {
+  position: static;
+  inset: auto;
+  display: grid;
+  place-items: center;
+  width: auto;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 17px;
+  border: 0;
+  border-left: 1px solid rgb(232 237 233 / 8%);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgb(223 229 224 / 52%);
+  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  backdrop-filter: none;
+  transform: none;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.experience-actions #load-track:hover:not(:disabled),
+.experience-actions #info-toggle:hover:not(:disabled),
+.experience-actions #settings-toggle:hover:not(:disabled),
+.experience-actions #fullscreen-toggle:hover:not(:disabled),
+.experience-actions #info-toggle[aria-expanded="true"],
+.experience-actions #settings-toggle[aria-expanded="true"] {
+  border-color: rgb(232 237 233 / 8%);
+  background: rgb(255 255 255 / 4%);
+  color: rgb(252 253 250 / 94%);
+  transform: none;
+}
+
+.experience-actions #load-track:disabled {
+  cursor: wait;
+  opacity: 0.34;
+}
+
+.experience-actions button:hover:not(:disabled),
+.experience-actions button[aria-expanded="true"],
+.experience-actions #fullscreen-toggle.is-active {
+  border-color: rgb(232 237 233 / 8%);
+  background: rgb(255 255 255 / 4%);
+  color: rgb(252 253 250 / 94%);
+  transform: none;
+}
+
+.experience-actions button:focus-visible {
+  outline: 1px solid rgb(244 247 243 / 46%);
+  outline-offset: -4px;
+}
+
+.experience-actions button:disabled {
+  cursor: wait;
+  opacity: 0.34;
+}
+
+.experience-actions #fullscreen-toggle {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  padding: 0;
+  color: rgb(233 238 234 / 60%);
+  font: 400 18px/1 "Segoe UI Symbol", "Segoe UI", sans-serif;
+}
+
+#playback-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 43px;
+  border-left: 1px solid rgb(232 237 233 / 8%);
+  opacity: 0.3;
+  transition: opacity 240ms ease;
+}
+
+#playback-indicator i {
+  display: block;
+  width: 1px;
+  height: 4px;
+  background: rgb(240 244 240 / 88%);
+  transform-origin: center;
+}
+
+#playback-indicator.is-active {
+  opacity: 0.9;
+}
+
+#playback-indicator.is-active i {
+  animation: playback-meter 760ms ease-in-out infinite alternate;
+}
+
+#playback-indicator.is-active i:nth-child(2) {
+  animation-duration: 510ms;
+  animation-delay: -180ms;
+}
+
+#playback-indicator.is-active i:nth-child(3) {
+  animation-duration: 640ms;
+  animation-delay: -340ms;
+}
+
+@keyframes playback-meter {
+  from { transform: scaleY(0.65); }
+  to { transform: scaleY(2.6); }
+}
+
+#experience-footer {
+  position: fixed;
+  right: 23px;
+  bottom: 22px;
+  left: 23px;
+  z-index: 45;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  color: rgb(222 228 223 / 34%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 900ms ease 750ms, visibility 900ms ease 750ms;
+}
+
+html.is-experience-active #experience-footer {
+  opacity: 1;
+  visibility: visible;
+}
+
+.system-identity,
+#now-playing {
+  display: grid;
+  gap: 5px;
+  font: 500 8px/1 "SFMono-Regular", Consolas, monospace;
+}
+
+.system-identity strong,
+#now-playing strong {
+  color: rgb(236 240 236 / 52%);
+  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+}
+
+#now-playing {
+  min-width: 240px;
+  text-align: right;
+}
+
+#now-playing-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#info-panel,
+#settings-panel {
+  top: 66px;
+  right: 18px;
+  left: auto;
+  z-index: 76;
+}
+
+#info-panel {
+  transform: translateX(-8px);
+}
+
+#mobile-advisory {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 78%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+#mobile-advisory.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.mobile-advisory-content {
+  width: min(330px, calc(100vw - 36px));
+  padding: 25px 24px 23px;
+  border: 1px solid rgb(230 236 231 / 18%);
+  border-radius: 3px;
+  background: rgb(5 7 7 / 96%);
+  box-shadow: 0 22px 70px rgb(0 0 0 / 54%), inset 0 1px rgb(255 255 255 / 5%);
+}
+
+.mobile-advisory-content > span {
+  color: rgb(205 214 207 / 42%);
+  font: 600 8px/1 "SFMono-Regular", Consolas, monospace;
+}
+
+.mobile-advisory-content h2 {
+  margin: 16px 0 0;
+  color: rgb(241 244 240 / 90%);
+  font: 550 18px/1.15 Inter, "Segoe UI", sans-serif;
+}
+
+.mobile-advisory-content p {
+  margin: 14px 0 0;
+  color: rgb(211 218 212 / 58%);
+  font: 400 12px/1.55 Inter, "Segoe UI", sans-serif;
+}
+
+#mobile-advisory-continue {
+  margin-top: 23px;
+  padding: 9px 0;
+  border: 0;
+  border-bottom: 1px solid rgb(238 242 238 / 32%);
+  background: transparent;
+  color: rgb(241 244 240 / 82%);
+  font: 600 9px/1 Inter, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  #experience-header {
+    height: 46px;
+    padding: 0 9px 0 11px;
+  }
+
+  .experience-brand {
+    gap: 7px;
+  }
+
+  .experience-brand img {
+    width: 17px;
+    height: 17px;
+  }
+
+  .experience-brand span {
+    font-size: 8px;
+  }
+
+  .experience-actions button {
+    padding: 0 8px;
+    font-size: 7px;
+  }
+
+  .experience-actions #load-track,
+  .experience-actions #info-toggle,
+  .experience-actions #settings-toggle {
+    padding: 0 8px;
+    font-size: 7px;
+  }
+
+  .experience-actions #fullscreen-toggle {
+    width: 31px;
+    font-size: 14px;
+  }
+
+  #playback-indicator {
+    width: 27px;
+  }
+
+  #experience-footer {
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+  }
+
+  .system-identity,
+  #now-playing {
+    gap: 4px;
+    font-size: 6px;
+  }
+
+  .system-identity strong,
+  #now-playing strong {
+    font-size: 8px;
+  }
+
+  #now-playing {
+    min-width: 0;
+    max-width: 48vw;
+  }
+
+  #info-panel,
+  #settings-panel {
+    top: 56px;
+    right: 12px;
+    left: 12px;
+  }
+
+  #info-panel {
+    width: auto;
+    max-height: calc(100vh - 68px);
+  }
+
+  #camera-back {
+    bottom: 48px;
+  }
+}

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Store } from './app/Store';
+import { Store, type AppState } from './app/Store';
 import { isSupportedTrackFile, TrackRuntime } from './audio/TrackRuntime';
 import { PlayerFoleyRuntime } from './audio/PlayerFoleyRuntime';
 import levelConfigJson from './config/level-config.json';
@@ -55,6 +55,13 @@ const infoClose = requireElement<HTMLButtonElement>('#info-close');
 const settingsToggle = requireElement<HTMLButtonElement>('#settings-toggle');
 const settingsPanel = requireElement<HTMLElement>('#settings-panel');
 const qualityButtons = [...document.querySelectorAll<HTMLButtonElement>('#quality-selector [data-quality]')];
+const fullscreenToggle = requireElement<HTMLButtonElement>('#fullscreen-toggle');
+const playbackIndicator = requireElement<HTMLElement>('#playback-indicator');
+const nowPlayingLabel = requireElement<HTMLElement>('#now-playing-label');
+const nowPlayingTitle = requireElement<HTMLElement>('#now-playing-title');
+const nowPlayingArtist = requireElement<HTMLElement>('#now-playing-artist');
+const mobileAdvisory = requireElement<HTMLElement>('#mobile-advisory');
+const mobileAdvisoryContinue = requireElement<HTMLButtonElement>('#mobile-advisory-continue');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -108,6 +115,7 @@ let idleShadowElapsed = 0;
 let webglContextLost = false;
 
 const QUALITY_STORAGE_KEY = 'kernwerk:quality:v1';
+const MOBILE_ADVISORY_STORAGE_KEY = 'kernwerk:mobile-advisory:v1';
 
 function readStoredQuality(): 'Low' | 'Medium' | 'High' | null {
   try {
@@ -165,6 +173,7 @@ function showRecoveryState(label: string, detail: string): void {
 function enterExperience(): void {
   if (!loading.classList.contains('is-ready') || loading.classList.contains('is-entering')) return;
   beginExperience.disabled = true;
+  document.documentElement.classList.add('is-experience-active');
   waitingForExperience = false;
   cameraNavigation?.playIntro();
   tutorialRuntime?.start();
@@ -174,6 +183,71 @@ function enterExperience(): void {
     loading.classList.add('is-hidden');
     loading.setAttribute('aria-hidden', 'true');
   }, 3_350);
+}
+
+function syncExperienceStatus(state: AppState): void {
+  const currentTrack = state.tracks[state.currentTrackIndex];
+  const isPlaying = state.playback === 'playing';
+  playbackIndicator.classList.toggle('is-active', isPlaying);
+  playbackIndicator.setAttribute('aria-label', isPlaying ? 'Playback active' : 'Playback stopped');
+
+  if (!currentTrack) {
+    nowPlayingLabel.textContent = 'DISC PLAYER';
+    nowPlayingTitle.textContent = state.insertedDiscId === null ? 'NO DISC LOADED' : 'DISC INSERTED';
+    nowPlayingArtist.textContent = state.insertedDiscId === null ? 'INSERT OR LOAD A DISC' : 'WAITING FOR READER';
+    return;
+  }
+
+  nowPlayingLabel.textContent = state.discReading
+    ? 'DISC PLAYER'
+    : isPlaying
+      ? 'NOW PLAYING'
+      : state.playback === 'paused'
+        ? 'PLAYBACK PAUSED'
+        : 'DISC PLAYER';
+  nowPlayingTitle.textContent = state.discReading ? 'READING DISC' : currentTrack.title.toUpperCase();
+  nowPlayingArtist.textContent = currentTrack.artist?.trim()
+    || `TRACK ${state.currentTrackIndex + 1} / ${state.tracks.length}`;
+}
+
+function syncFullscreenState(): void {
+  const active = document.fullscreenElement !== null;
+  fullscreenToggle.classList.toggle('is-active', active);
+  fullscreenToggle.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
+  fullscreenToggle.title = active ? 'Exit fullscreen' : 'Fullscreen';
+}
+
+async function toggleFullscreen(): Promise<void> {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch (error) {
+    console.warn('[Fullscreen] Request was rejected.', error);
+  }
+}
+
+function showMobileAdvisoryIfNeeded(): void {
+  const likelyPhone = window.matchMedia('(pointer: coarse)').matches
+    && (window.innerWidth <= 820 || window.innerHeight <= 520);
+  if (!likelyPhone) return;
+  try {
+    if (sessionStorage.getItem(MOBILE_ADVISORY_STORAGE_KEY) === 'dismissed') return;
+  } catch {
+    // The notice can still be shown when session storage is unavailable.
+  }
+  mobileAdvisory.classList.add('is-visible');
+  mobileAdvisory.setAttribute('aria-hidden', 'false');
+  window.setTimeout(() => mobileAdvisoryContinue.focus({ preventScroll: true }), 0);
+}
+
+function dismissMobileAdvisory(): void {
+  mobileAdvisory.classList.remove('is-visible');
+  mobileAdvisory.setAttribute('aria-hidden', 'true');
+  try {
+    sessionStorage.setItem(MOBILE_ADVISORY_STORAGE_KEY, 'dismissed');
+  } catch {
+    // Dismissal still applies until the next navigation.
+  }
 }
 
 function setDebugMode(enabled: boolean): boolean {
@@ -294,8 +368,10 @@ Object.defineProperty(window, 'kernwerk', {
 });
 console.info('[Kernwerk] Controls: kernwerk.status() / kernwerk.loading() / kernwerk.debug() / kernwerk.quality("Auto" | "Ultra" | "High" | "Medium" | "Low")');
 
-store.subscribe(() => {
+syncExperienceStatus(store.getState());
+store.subscribe((next) => {
   shadowBurstSeconds = 1;
+  syncExperienceStatus(next);
 });
 
 async function start(): Promise<void> {
@@ -493,6 +569,7 @@ function dispose(): void {
   window.removeEventListener('dragleave', onDragLeave);
   window.removeEventListener('drop', onDrop);
   window.removeEventListener('dragend', onDragEnd);
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
   canvas.removeEventListener('webglcontextlost', onWebGLContextLost);
   canvas.removeEventListener('webglcontextrestored', onWebGLContextRestored);
   renderer.setAnimationLoop(null);
@@ -528,6 +605,9 @@ beginExperience.addEventListener('click', enterExperience);
 infoToggle.addEventListener('click', () => setInfoVisible(!infoPanel.classList.contains('is-visible')));
 infoClose.addEventListener('click', () => setInfoVisible(false));
 settingsToggle.addEventListener('click', () => setSettingsVisible(!settingsPanel.classList.contains('is-visible')));
+fullscreenToggle.addEventListener('click', () => void toggleFullscreen());
+document.addEventListener('fullscreenchange', syncFullscreenState);
+mobileAdvisoryContinue.addEventListener('click', dismissMobileAdvisory);
 loadingRetry.addEventListener('click', () => window.location.reload());
 qualityButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -542,4 +622,6 @@ trackFileInput.addEventListener('change', () => {
   const files = [...(trackFileInput.files ?? [])];
   if (files.length > 0) void loadTrackFiles(files);
 });
+if (!document.fullscreenEnabled) fullscreenToggle.hidden = true;
+showMobileAdvisoryIfNeeded();
 void start();
